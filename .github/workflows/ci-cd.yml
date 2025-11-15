@@ -151,8 +151,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ env.GHCR_TOKEN }}
 
-      - run: docker-compose -f docker-compose.yml pull
-      - run: docker-compose -f docker-compose.yml up -d && sleep 20
+      - run: docker compose -f docker-compose.yml pull
+      - run: docker compose -f docker-compose.yml up -d && sleep 20
 
       - uses: zaproxy/action-baseline@v0.8.0
         with:
@@ -160,7 +160,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - run: mkdir -p reports && mv zap_report.html reports/ || true
-      - run: docker-compose -f docker-compose.yml down --volumes --remove-orphans
+      - run: docker compose -f docker-compose.yml down --volumes --remove-orphans
 
   publish-and-deploy:
     name: Publish ':latest' tags
