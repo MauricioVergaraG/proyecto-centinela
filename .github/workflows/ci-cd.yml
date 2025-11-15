@@ -133,7 +133,7 @@ jobs:
     needs: build-and-scan-images
     env:
       REGISTRY: ghcr.io
-      IMAGE_NAMESPACE: ${{ github.repository }} # No se toca, esto funciona.
+      IMAGE_NAMESPACE: ${{ github.repository }}
       IMAGE_TAG: ${{ github.run_id }}
       GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
     steps:
@@ -149,23 +149,28 @@ jobs:
 
       - name: Run application stack
         run: |
-          # --- ¡CORRECCIÓN! Forzamos las variables a minúsculas ---
-          # y las exportamos para que 'docker compose' las lea
           export IMAGE_NAMESPACE=$(echo "${{ env.IMAGE_NAMESPACE }}" | tr '[:upper:]' '[:lower:]')
           export IMAGE_TAG=${{ env.IMAGE_TAG }}
-
           docker compose -f docker-compose.yml pull
           docker compose -f docker-compose.yml up -d && sleep 30
 
+      # --- ¡CORRECCIÓN DE DAST! ---
       - name: Run ZAP Baseline Scan
         continue-on-error: true
         run: |
+          # 1. Encontrar el nombre de la red de Docker (ej. "centinela_default")
+          #    (Asumiendo que el nombre de tu carpeta es 'centinela')
+          NETWORK_NAME=$(docker network ls --filter "name=centinela" --format "{{.Name}}")
+
+          echo "Conectando ZAP a la red: $NETWORK_NAME"
+
           docker run \
-            --add-host=host.docker.internal:host-gateway \
+            --network $NETWORK_NAME \
             --name zap_scanner \
             ghcr.io/zaproxy/zaproxy zap-baseline.py \
-            -t http://host.docker.internal:3000 \
+            -t http://frontend:80 \
             -r report_dast_zap.html
+            # -t http://frontend:80 (Ataca el servicio 'frontend' en el puerto 80)
 
       - name: Copy ZAP report
         if: always()
