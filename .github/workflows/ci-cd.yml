@@ -119,9 +119,15 @@ jobs:
 
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
-          trivy image --severity HIGH,CRITICAL --exit-code 1 $API_IMG_ID || true
-          trivy image --severity HIGH,CRITICAL --exit-code 1 $FRONTEND_IMG_ID || true
-          trivy image --severity HIGH,CRITICAL --exit-code 1 $SCRAPER_IMG_ID || true
+          # Asegura que exista la carpeta de reportes y que Trivy tenga la DB local
+          mkdir -p reports
+          trivy --download-db-only || true
+
+          # Escanear imágenes y generar reportes JSON. No silenciar la salida: si hay HIGH/CRITICAL
+          # Trivy devolverá código != 0 y el step fallará (evitando push accidental).
+          trivy image --format json --output reports/trivy-api.json --severity HIGH,CRITICAL --exit-code 1 $API_IMG_ID
+          trivy image --format json --output reports/trivy-frontend.json --severity HIGH,CRITICAL --exit-code 1 $FRONTEND_IMG_ID
+          trivy image --format json --output reports/trivy-scraper.json --severity HIGH,CRITICAL --exit-code 1 $SCRAPER_IMG_ID
 
           docker push $API_IMG_ID
           docker push $FRONTEND_IMG_ID
@@ -158,7 +164,6 @@ jobs:
 
       # --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
       - name: Run ZAP Baseline Scan
-        continue-on-error: true
         run: |
           # Prepara carpeta local para que ZAP la use como /zap/wrk dentro del contenedor
           mkdir -p reports
@@ -195,7 +200,15 @@ jobs:
             -v "$(pwd)/reports":/zap/wrk \
             ghcr.io/zaproxy/zaproxy zap-baseline.py \
               -t http://frontend:80 \
-              -r /zap/wrk/report_dast_zap.html || true
+              -r /zap/wrk/report_dast_zap.html
+
+      - name: Upload Trivy reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-reports
+          path: reports/*.json
+          if-no-files-found: ignore
 
       - name: Ensure ZAP report
         if: always()
