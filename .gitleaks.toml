@@ -1,0 +1,12 @@
+# gitleaks basic configuration
+title = "gitleaks rules - Proyecto Centinela"
+
+[[rules]]
+description = "AWS Access Key"
+regex = '''AKIA[0-9A-Z]{16}'''
+tags = ["key","aws"]
+
+[[rules]]
+description = "Private RSA Key"
+regex = '''-----BEGIN RSA PRIVATE KEY-----'''
+tags = ["key","pem"]

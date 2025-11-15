@@ -1,0 +1,15 @@
+rules:
+  - id: python-django-sql-injection
+    patterns:
+      - pattern-either:
+          - pattern: "execute($EXPR)"
+    message: "Posible SQL execution - validar parametrización"
+    languages: [python]
+    severity: ERROR
+
+  - id: hardcoded-credentials
+    patterns:
+      - pattern: "password = $X"
+    message: "Posible credencial hardcodeada"
+    languages: [python, javascript]
+    severity: WARNING
