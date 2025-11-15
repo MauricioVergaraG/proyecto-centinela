@@ -1,46 +1,46 @@
 services:
   db:
-	image: postgres:15
-	environment:
-	  POSTGRES_USER: centinela
-	  POSTGRES_PASSWORD: secret
-	  POSTGRES_DB: centinela
-	volumes:
-	  - pgdata:/var/lib/postgresql/data
+    image: postgres:15
+    environment:
+      POSTGRES_USER: centinela
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: centinela
+    volumes:
+      - pgdata:/var/lib/postgresql/data
 
   redis:
-	image: redis:7
+    image: redis:7
 
   api:
-	# --- ¡CAMBIO! ---
-	# En CI, usará esta imagen. Localmente, usará 'build'.
-	image: ghcr.io/${IMAGE_NAMESPACE:-local}/centinela-api:${IMAGE_TAG:-latest}
-	build: ./services/api
-	ports:
-	  - "8000:8000"
-	environment:
-	  DATABASE_URL: postgresql://centinela:secret@db/centinela
-	  BROKER_URL: redis://redis:6379/0
-	depends_on:
-	  - db
-	  - redis
+    # --- ¡CAMBIO! ---
+    # ghcr.io/TU_REPO/api:${IMAGE_TAG:-latest}
+    image: ghcr.io/${IMAGE_NAMESPACE:-local}/api:${IMAGE_TAG:-latest}
+    build: ./services/api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://centinela:secret@db/centinela
+      BROKER_URL: redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
 
   scraper:
-	# --- ¡CAMBIO! ---
-	image: ghcr.io/${IMAGE_NAMESPACE:-local}/centinela-scraper:${IMAGE_TAG:-latest}
-	build: ./services/scraper
-	environment:
-	  BROKER_URL: redis://redis:6379/0
-	depends_on:
-	  - redis
-	  - api
+    # --- ¡CAMBIO! ---
+    image: ghcr.io/${IMAGE_NAMESPACE:-local}/scraper:${IMAGE_TAG:-latest}
+    build: ./services/scraper
+    environment:
+      BROKER_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+      - api
 
   frontend:
-	# --- ¡CAMBIO! ---
-	image: ghcr.io/${IMAGE_NAMESPACE:-local}/centinela-frontend:${IMAGE_TAG:-latest}
-	build: ./services/frontend
-	ports:
-	  - "3000:80"
+    # --- ¡CAMBIO! ---
+    image: ghcr.io/${IMAGE_NAMESPACE:-local}/frontend:${IMAGE_TAG:-latest}
+    build: ./services/frontend
+    ports:
+      - "3000:80"
 
 volumes:
-  pgdata:a:
+  pgdata:
