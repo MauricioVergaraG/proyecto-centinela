@@ -27,5 +27,6 @@ class ScrapeRequest(BaseModel):
 
 @app.post("/scrape")
 async def enqueue_scrape(req: ScrapeRequest):
-    # En este MVP simplemente devolvemos ack. En la siguiente iteración se publicará en Redis/Rabbit.
+    # En este MVP simplemente devolvemos ack.
+    # En la siguiente iteración se publicará en Redis/Rabbit.
     return {"status": "queued", "url": req.url}
