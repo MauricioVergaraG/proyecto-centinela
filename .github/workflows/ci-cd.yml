@@ -120,7 +120,7 @@ jobs:
 
           docker build -t $REGISTRY/$IMAGE_NS:api-${{ github.run_id }} -f services/api/Dockerfile services/api
           docker build -t $REGISTRY/$IMAGE_NS:frontend-${{ github.run_id }} -f services/frontend/Dockerfile services/frontend
-          docker build -t $REGISTRY/$IMAGE_NS:scraper-${{ github.run_id }} -f services/scraper/scraper/Dockerfile services/scraper/scraper
+          docker build -t $REGISTRY/$IMAGE_NS:scraper-${{ github.run_id }} -f services/scraper/Dockerfile services/scraper
 
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
