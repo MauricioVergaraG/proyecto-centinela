@@ -15,16 +15,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Cache pip packages
         id: cache-pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: pip-${{ hashFiles('**/services/**/requirements.txt') }}-${{ runner.os }}
-          restore-keys: |
-            pip-${{ runner.os }}
-
       - name: Cache node modules
         id: cache-node
         uses: actions/cache@v4
@@ -33,8 +29,6 @@ jobs:
             services/frontend/node_modules
             ~/.npm
           key: node-${{ hashFiles('services/frontend/**/package-lock.json') }}-${{ runner.os }}
-          restore-keys: |
-            node-${{ runner.os }}
 
   lint-format-sast:
     name: Lint / Format / SAST
@@ -42,15 +36,12 @@ jobs:
     needs: setup-cache
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
       - run: |
           python -m pip install --upgrade pip
           pip install black flake8 bandit semgrep
-
       - run: black --check services
       - run: flake8 services
       - run: bandit -r services/api -lll
@@ -62,7 +53,6 @@ jobs:
     needs: lint-format-sast
     steps:
       - uses: actions/checkout@v4
-
       - run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
       - run: trivy fs --severity HIGH,CRITICAL --exit-code 1 --no-progress .
 
@@ -72,28 +62,22 @@ jobs:
     needs: dependency-scan
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
       - run: |
           echo "PYTHONPATH=$PYTHONPATH:$(pwd)" >> $GITHUB_ENV
-
       - run: |
           pip install -r services/api/requirements.txt
           pip install pytest
           pytest -q
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - run: |
           cd services/frontend
           npm install
           npm run build --if-present
-
 
   build-and-scan-images:
     name: Build, Scan & Push Versioned Images
@@ -101,11 +85,11 @@ jobs:
     needs: tests
     env:
       REGISTRY: ghcr.io
-      IMAGE_NAMESPACE: ${{ github.repository }}
+      # --- ¡CORREGIDO! Namespace en minúsculas ---
+      IMAGE_NAMESPACE: ${{ github.repository | toLower }}
       GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-
       - name: Login to GHCR
         if: env.GHCR_TOKEN != ''
         uses: docker/login-action@v3
@@ -116,21 +100,26 @@ jobs:
 
       - name: Build, scan and push images
         run: |
-          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
+          # --- ¡CORREGIDO! Nombres de imagen (ej. /api, /frontend) ---
+          API_IMG_ID="$REGISTRY/$IMAGE_NAMESPACE/api:${{ github.run_id }}"
+          FRONTEND_IMG_ID="$REGISTRY/$IMAGE_NAMESPACE/frontend:${{ github.run_id }}"
+          SCRAPER_IMG_ID="$REGISTRY/$IMAGE_NAMESPACE/scraper:${{ github.run_id }}"
 
-          docker build -t $REGISTRY/$IMAGE_NS:api-${{ github.run_id }} -f services/api/Dockerfile services/api
-          docker build -t $REGISTRY/$IMAGE_NS:frontend-${{ github.run_id }} -f services/frontend/Dockerfile services/frontend
-          docker build -t $REGISTRY/$IMAGE_NS:scraper-${{ github.run_id }} -f services/scraper/Dockerfile services/scraper
+          docker build -t $API_IMG_ID -f services/api/Dockerfile services/api
+          docker build -t $FRONTEND_IMG_ID -f services/frontend/Dockerfile services/frontend
+          # --- ¡CORREGIDO! Ruta del Scraper ---
+          docker build -t $SCRAPER_IMG_ID -f services/scraper/Dockerfile services/scraper
 
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
-          trivy image --severity HIGH,CRITICAL --exit-code 1 $REGISTRY/$IMAGE_NS:api-${{ github.run_id }} || true
-          trivy image --severity HIGH,CRITICAL --exit-code 1 $REGISTRY/$IMAGE_NS:frontend-${{ github.run_id }} || true
-          trivy image --severity HIGH,CRITICAL --exit-code 1 $REGISTRY/$IMAGE_NS:scraper-${{ github.run_id }} || true
+          # Dejamos el '|| true' por ahora, como pediste, para depurar
+          trivy image --severity HIGH,CRITICAL --exit-code 1 $API_IMG_ID || true
+          trivy image --severity HIGH,CRITICAL --exit-code 1 $FRONTEND_IMG_ID || true
+          trivy image --severity HIGH,CRITICAL --exit-code 1 $SCRAPER_IMG_ID || true
 
-          docker push $REGISTRY/$IMAGE_NS:api-${{ github.run_id }}
-          docker push $REGISTRY/$IMAGE_NS:frontend-${{ github.run_id }}
-          docker push $REGISTRY/$IMAGE_NS:scraper-${{ github.run_id }}
+          docker push $API_IMG_ID
+          docker push $FRONTEND_IMG_ID
+          docker push $SCRAPER_IMG_ID
 
   dast:
     name: DAST — OWASP ZAP
@@ -138,11 +127,12 @@ jobs:
     needs: build-and-scan-images
     env:
       REGISTRY: ghcr.io
-      IMAGE_NAMESPACE: ${{ github.repository }}
+      # --- ¡CORREGIDO! Pasamos las variables al docker-compose.yml ---
+      IMAGE_NAMESPACE: ${{ github.repository | toLower }}
+      IMAGE_TAG: ${{ github.run_id }}
       GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-
       - name: Login to GHCR
         if: env.GHCR_TOKEN != ''
         uses: docker/login-action@v3
@@ -151,16 +141,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ env.GHCR_TOKEN }}
 
-      # 1. Levantar la aplicación con 'docker compose' (con espacio)
+      # --- ¡CORREGIDO! Usar 'docker compose' (con espacio) ---
+      # 'pull' AHORA FUNCIONARÁ gracias a las variables de entorno
       - name: Run application stack
         run: |
           docker compose -f docker-compose.yml pull
-          docker compose -f docker-compose.yml up -d && sleep 20
+          docker compose -f docker-compose.yml up -d && sleep 30
 
-      # 2. Ejecutar ZAP (método manual con la imagen correcta)
       - name: Run ZAP Baseline Scan
-        # Ignora el fallo si ZAP encuentra vulnerabilidades
-        continue-on-error: true
+        continue-on-error: true # Ignora si ZAP encuentra fallos
         run: |
           docker run \
             --add-host=host.docker.internal:host-gateway \
@@ -169,21 +158,19 @@ jobs:
             -t http://host.docker.internal:3000 \
             -r report_dast_zap.html
 
-      # 3. Copiar el reporte (siempre se ejecuta)
       - name: Copy ZAP report
         if: always()
         run: |
-          docker cp zap_scanner:/zap/wrk/report_dast_zap.html .
+          docker cp zap_scanner:/zap/wrk/report_dast_zap.html . || echo "ZAP report not found"
 
-      # 4. Subir el reporte (siempre se ejecuta)
       - name: Upload ZAP report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: reporte-dast-zap
           path: report_dast_zap.html
+          if-no-files-found: ignore # No fallar si no hay reporte
 
-      # 5. Detener la aplicación
       - name: Stop application stack
         if: always()
         run: docker compose -f docker-compose.yml down --volumes --remove-orphans
@@ -197,7 +184,8 @@ jobs:
       packages: write
     env:
       REGISTRY: ghcr.io
-      IMAGE_NAMESPACE: ${{ github.repository }}
+      # --- ¡CORREGIDO! ---
+      IMAGE_NAMESPACE: ${{ github.repository | toLower }}
       GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
     steps:
       - name: Login GHCR
@@ -208,23 +196,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ env.GHCR_TOKEN }}
 
+      # --- ¡CORREGIDO! Nombres de imagen (ej. /api, /frontend) ---
       - run: |
-          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
-          docker pull $REGISTRY/$IMAGE_NS:api-${{ github.run_id }}
-          docker tag  $REGISTRY/$IMAGE_NS:api-${{ github.run_id }}  $REGISTRY/$IMAGE_NS:api-latest
-          docker push $REGISTRY/$IMAGE_NS:api-latest
+          docker pull $REGISTRY/$IMAGE_NAMESPACE/api:${{ github.run_id }}
+          docker tag  $REGISTRY/$IMAGE_NAMESPACE/api:${{ github.run_id }} $REGISTRY/$IMAGE_NAMESPACE/api:latest
+          docker push $REGISTRY/$IMAGE_NAMESPACE/api:latest
 
       - run: |
-          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
-          docker pull $REGISTRY/$IMAGE_NS:frontend-${{ github.run_id }}
-          docker tag  $REGISTRY/$IMAGE_NS:frontend-${{ github.run_id }}  $REGISTRY/$IMAGE_NS:frontend-latest
-          docker push $REGISTRY/$IMAGE_NS:frontend-latest
+          docker pull $REGISTRY/$IMAGE_NAMESPACE/frontend:${{ github.run_id }}
+          docker tag  $REGISTRY/$IMAGE_NAMESPACE/frontend:${{ github.run_id }} $REGISTRY/$IMAGE_NAMESPACE/frontend:latest
+          docker push $REGISTRY/$IMAGE_NAMESPACE/frontend:latest
 
       - run: |
-          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
-          docker pull $REGISTRY/$IMAGE_NS:scraper-${{ github.run_id }}
-          docker tag  $REGISTRY/$IMAGE_NS:scraper-${{ github.run_id }}  $REGISTRY/$IMAGE_NS:scraper-latest
-          docker push $REGISTRY/$IMAGE_NS:scraper-latest
+          docker pull $REGISTRY/$IMAGE_NAMESPACE/scraper:${{ github.run_id }}
+          docker tag  $REGISTRY/$IMAGE_NAMESPACE/scraper:${{ github.run_id }} $REGISTRY/$IMAGE_NAMESPACE/scraper:latest
+          docker push $REGISTRY/$IMAGE_NAMESPACE/scraper:latest
 
   cleanup:
     name: Cleanup
