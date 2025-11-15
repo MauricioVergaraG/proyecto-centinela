@@ -89,13 +89,13 @@ jobs:
     needs: tests
     env:
       REGISTRY: ghcr.io
-      # --- ¡CORREGIDO! Usando la sintaxis CORRECTA toLower() ---
-      IMAGE_NAMESPACE: ${{ toLower(github.repository) }}
+      IMAGE_NAMESPACE: ${{ github.repository }} # No se toca, esto funciona.
       GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Login to GHCR
-        # --- ¡CORREGIDO! Sintaxis 'if' envuelta en ${{...}} ---
+        # --- ¡CORREGIDO! Sintaxis 'if' ---
         if: ${{ env.GHCR_TOKEN != '' }}
         uses: docker/login-action@v3
         with:
@@ -105,14 +105,16 @@ jobs:
 
       - name: Build, scan and push images
         run: |
-          # --- ¡CORREGIDO! Nombres de imagen para que coincidan con docker-compose.yml ---
-          # (ej. ghcr.io/tu-repo/api:12345)
-          API_IMG_ID="$REGISTRY/$IMAGE_NAMESPACE/api:${{ github.run_id }}"
-          FRONTEND_IMG_ID="$REGISTRY/$IMAGE_NAMESPACE/frontend:${{ github.run_id }}"
-          SCRAPER_IMG_ID="$REGISTRY/$IMAGE_NAMESPACE/scraper:${{ github.run_id }}"
+          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
+
+          # --- ¡CORRECCIÓN DE NOMBRES! (ej. .../api:tag) ---
+          API_IMG_ID="$REGISTRY/$IMAGE_NS/api:${{ github.run_id }}"
+          FRONTEND_IMG_ID="$REGISTRY/$IMAGE_NS/frontend:${{ github.run_id }}"
+          SCRAPER_IMG_ID="$REGISTRY/$IMAGE_NS/scraper:${{ github.run_id }}"
 
           docker build -t $API_IMG_ID -f services/api/Dockerfile services/api
           docker build -t $FRONTEND_IMG_ID -f services/frontend/Dockerfile services/frontend
+          # --- ¡CORRECCIÓN DE RUTA! ---
           docker build -t $SCRAPER_IMG_ID -f services/scraper/Dockerfile services/scraper
 
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
@@ -131,12 +133,14 @@ jobs:
     needs: build-and-scan-images
     env:
       REGISTRY: ghcr.io
-      # --- ¡CORREGIDO! Pasando las variables al compose ---
-      IMAGE_NAMESPACE: ${{ toLower(github.repository) }}
+      # --- ¡CORRECCIÓN LÓGICA! ---
+      # Pasamos las variables al docker-compose.yml
+      IMAGE_NAMESPACE: ${{ github.repository }} # No se toca, esto funciona.
       IMAGE_TAG: ${{ github.run_id }}
       GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Login to GHCR
         if: ${{ env.GHCR_TOKEN != '' }}
         uses: docker/login-action@v3
@@ -146,8 +150,11 @@ jobs:
           password: ${{ env.GHCR_TOKEN }}
 
       - name: Run application stack
+        # --- ¡CORRECCIÓN! Pasamos las variables al 'pull' ---
+        env:
+          IMAGE_NAMESPACE: $(echo "${{ env.IMAGE_NAMESPACE }}" | tr '[:upper:]' '[:lower:]')
         run: |
-          # 'docker compose' (con espacio)
+          # --- ¡CORRECCIÓN! 'docker compose' (con espacio) ---
           docker compose -f docker-compose.yml pull
           docker compose -f docker-compose.yml up -d && sleep 30
 
@@ -187,8 +194,7 @@ jobs:
       packages: write
     env:
       REGISTRY: ghcr.io
-      # --- ¡CORREGIDO! ---
-      IMAGE_NAMESPACE: ${{ toLower(github.repository) }}
+      IMAGE_NAMESPACE: ${{ github.repository }} # No se toca, esto funciona.
       GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
     steps:
       - name: Login GHCR
@@ -199,19 +205,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ env.GHCR_TOKEN }}
 
-      # --- ¡CORREGIDO! Nombres de imagen para que coincidan con docker-compose.yml ---
       - run: |
-          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}") # ya está en minúsculas
+          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
+          # --- ¡CORRECCIÓN DE NOMBRES! ---
           docker pull $REGISTRY/$IMAGE_NS/api:${{ github.run_id }}
           docker tag  $REGISTRY/$IMAGE_NS/api:${{ github.run_id }} $REGISTRY/$IMAGE_NS/api:latest
           docker push $REGISTRY/$IMAGE_NS/api:latest
       - run: |
-          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}")
+          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
+          # --- ¡CORRECCIÓN DE NOMBRES! ---
           docker pull $REGISTRY/$IMAGE_NS/frontend:${{ github.run_id }}
           docker tag  $REGISTRY/$IMAGE_NS/frontend:${{ github.run_id }} $REGISTRY/$IMAGE_NS/frontend:latest
           docker push $REGISTRY/$IMAGE_NS/frontend:latest
       - run: |
-          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}")
+          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
+          # --- ¡CORRECCIÓN DE NOMBRES! ---
           docker pull $REGISTRY/$IMAGE_NS/scraper:${{ github.run_id }}
           docker tag  $REGISTRY/$IMAGE_NS/scraper:${{ github.run_id }} $REGISTRY/$IMAGE_NS/scraper:latest
           docker push $REGISTRY/$IMAGE_NS/scraper:latest
