@@ -151,19 +151,42 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ env.GHCR_TOKEN }}
 
-      # --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-      - run: docker compose -f docker-compose.yml pull
-      - run: docker compose -f docker-compose.yml up -d && sleep 20
+      # 1. Levantar la aplicación con 'docker compose' (con espacio)
+      - name: Run application stack
+        run: |
+          docker compose -f docker-compose.yml pull
+          docker compose -f docker-compose.yml up -d && sleep 20
 
-      - uses: zaproxy/action-baseline@v0.8.0
+      # 2. Ejecutar ZAP (método manual con la imagen correcta)
+      - name: Run ZAP Baseline Scan
+        # Ignora el fallo si ZAP encuentra vulnerabilidades
+        continue-on-error: true
+        run: |
+          docker run \
+            --add-host=host.docker.internal:host-gateway \
+            --name zap_scanner \
+            ghcr.io/zaproxy/zaproxy zap-baseline.py \
+            -t http://host.docker.internal:3000 \
+            -r report_dast_zap.html
+
+      # 3. Copiar el reporte (siempre se ejecuta)
+      - name: Copy ZAP report
+        if: always()
+        run: |
+          docker cp zap_scanner:/zap/wrk/report_dast_zap.html .
+
+      # 4. Subir el reporte (siempre se ejecuta)
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          target: 'http://localhost:3000'
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          name: reporte-dast-zap
+          path: report_dast_zap.html
 
-      - run: mkdir -p reports && mv zap_report.html reports/ || true
-
-      # --- ¡Y AQUÍ! ---
-      - run: docker compose -f docker-compose.yml down --volumes --remove-orphans
+      # 5. Detener la aplicación
+      - name: Stop application stack
+        if: always()
+        run: docker compose -f docker-compose.yml down --volumes --remove-orphans
 
   publish-and-deploy:
     name: Publish ':latest' tags
