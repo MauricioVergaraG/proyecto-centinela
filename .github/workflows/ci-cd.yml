@@ -1,4 +1,4 @@
-name: CI/CD Full — Centinela (DevSecOps)
+name: CI/CD Full - Centinela (DevSecOps)
 
 on:
   push:
