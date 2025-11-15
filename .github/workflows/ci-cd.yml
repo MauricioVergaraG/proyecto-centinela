@@ -149,40 +149,71 @@ jobs:
 
       - name: Run application stack
         run: |
+          # Exporta las variables para que docker-compose las lea
           export IMAGE_NAMESPACE=$(echo "${{ env.IMAGE_NAMESPACE }}" | tr '[:upper:]' '[:lower:]')
           export IMAGE_TAG=${{ env.IMAGE_TAG }}
+
           docker compose -f docker-compose.yml pull
           docker compose -f docker-compose.yml up -d && sleep 30
 
-      # --- ¡CORRECCIÓN DE DAST! ---
+      # --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
       - name: Run ZAP Baseline Scan
         continue-on-error: true
         run: |
-          # 1. Encontrar el nombre de la red de Docker (ej. "centinela_default")
-          #    (Asumiendo que el nombre de tu carpeta es 'centinela')
-          NETWORK_NAME=$(docker network ls --filter "name=centinela" --format "{{.Name}}")
+          # Prepara carpeta local para que ZAP la use como /zap/wrk dentro del contenedor
+          mkdir -p reports
 
+          # 1. Obtener el container ID del servicio 'frontend' creado por docker compose
+          FRONTEND_CID=$(docker compose ps -q frontend)
+          if [ -z "$FRONTEND_CID" ]; then
+            echo "ERROR: no se encontró el contenedor 'frontend' (docker compose ps -q frontend devolvió vacío)"
+            docker compose ps || true
+            exit 1
+          fi
+
+          # 2. Obtener el nombre de la red a la que está conectado ese contenedor
+          NETWORK_NAME=$(docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' $FRONTEND_CID | awk '{print $1}')
           echo "Conectando ZAP a la red: $NETWORK_NAME"
 
-          docker run \
-            --network $NETWORK_NAME \
-            --name zap_scanner \
-            ghcr.io/zaproxy/zaproxy zap-baseline.py \
-            -t http://frontend:80 \
-            -r report_dast_zap.html
-            # -t http://frontend:80 (Ataca el servicio 'frontend' en el puerto 80)
+          # 3. Esperar a que el servicio frontend responda en http://frontend:80 (dentro de la red)
+          echo "Esperando a que frontend responda en http://frontend:80..."
+          REACHABLE=0
+          for i in $(seq 1 12); do
+            echo "Intento $i/12..."
+            docker run --rm --network "$NETWORK_NAME" busybox wget -qO- http://frontend:80 >/dev/null 2>&1 && { REACHABLE=1; echo "frontend responde dentro de la red"; break; } || sleep 5
+          done
 
-      - name: Copy ZAP report
+          if [ "$REACHABLE" -ne 1 ]; then
+            echo "WARNING: frontend no responde dentro de la red tras varios intentos. Volcando logs de frontend..."
+            docker logs $FRONTEND_CID || true
+          fi
+
+          # 4. Ejecutar ZAP montando la carpeta 'reports' en /zap/wrk
+          docker run --rm \
+            --network "$NETWORK_NAME" \
+            --name zap_scanner \
+            -v "$(pwd)/reports":/zap/wrk \
+            ghcr.io/zaproxy/zaproxy zap-baseline.py \
+              -t http://frontend:80 \
+              -r /zap/wrk/report_dast_zap.html || true
+
+      - name: Ensure ZAP report
         if: always()
         run: |
-          docker cp zap_scanner:/zap/wrk/report_dast_zap.html . || echo "ZAP report not found"
+          echo "Listado de carpeta 'reports':"
+          ls -la reports || true
+          if [ -f reports/report_dast_zap.html ]; then
+            echo "ZAP report encontrado: reports/report_dast_zap.html"
+          else
+            echo "ZAP report no encontrado"
+          fi
 
       - name: Upload ZAP report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: reporte-dast-zap
-          path: report_dast_zap.html
+          path: reports/report_dast_zap.html
           if-no-files-found: ignore
 
       - name: Stop application stack
