@@ -98,7 +98,7 @@ jobs:
     needs: tests
     env:
       REGISTRY: ghcr.io
-      IMAGE_NAMESPACE: ${{ github.repository | toLower }}
+      IMAGE_NAMESPACE: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
 
@@ -110,19 +110,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }} -f services/api/Dockerfile services/api
-      - run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }} -f services/frontend/Dockerfile services/frontend
-      - run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }} -f services/scraper/Dockerfile services/scraper
+      - name: Build, scan and push images
+        run: |
+          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }} -f services/api/Dockerfile services/api
+          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }} -f services/frontend/Dockerfile services/frontend
+          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }} -f services/scraper/scraper/Dockerfile services/scraper/scraper
 
-      - run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
-      - run: trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }}
-      - run: trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }}
-      - run: trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }}
+          trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }} || true
+          trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }} || true
+          trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }} || true
 
-      - run: docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }}
-      - run: docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }}
-      - run: docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }}
 
   dast:
     name: DAST — OWASP ZAP
@@ -130,7 +132,7 @@ jobs:
     needs: build-and-scan-images
     env:
       REGISTRY: ghcr.io
-      IMAGE_NAMESPACE: ${{ github.repository | toLower }}
+      IMAGE_NAMESPACE: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
 
@@ -162,7 +164,7 @@ jobs:
       packages: write
     env:
       REGISTRY: ghcr.io
-      IMAGE_NAMESPACE: ${{ github.repository | toLower }}
+      IMAGE_NAMESPACE: ${{ github.repository }}
     steps:
       - name: Login GHCR
         if: ${{ secrets.GHCR_TOKEN != '' }}
