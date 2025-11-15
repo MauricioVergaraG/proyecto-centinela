@@ -9,18 +9,11 @@ on:
     branches: [ main ]
   workflow_dispatch: {}
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAMESPACE: ${{ github.repository }}   # ghcr.io/owner/repo
-
 jobs:
 
   setup-cache:
     name: Prepare & Cache (pip / npm)
     runs-on: ubuntu-latest
-    outputs:
-      cache-hit-pip: ${{ steps.cache-pip.outputs.cache-hit }}
-      cache-hit-node: ${{ steps.cache-node.outputs.cache-hit }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,29 +44,16 @@ jobs:
     needs: setup-cache
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
-      - name: Install linters & semgrep
-        run: |
+      - run: |
           python -m pip install --upgrade pip
-          pip install black==23.12.0 flake8==6.1.0 bandit==1.7.6 semgrep
-
-      - name: Run Black (format check)
-        run: |
-          black --check services || true
-
-      - name: Run Flake8 (lint)
-        run: flake8 services || true
-
-      - name: Run Bandit (SAST)
-        run: bandit -r services/api -lll || true
-
-      - name: Run Semgrep (custom rules)
-        run: semgrep --config ./.semgrep/basic-rules.yml || true
+          pip install black flake8 bandit semgrep
+      - run: black --check services || true
+      - run: flake8 services || true
+      - run: bandit -r services/api -lll || true
+      - run: semgrep --config ./.semgrep/basic-rules.yml || true
 
   dependency-scan:
     name: Dependency & Filesystem Scan (Trivy SBOM)
@@ -81,43 +61,27 @@ jobs:
     needs: lint-format-sast
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Trivy
-        run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-
-      - name: Trivy filesystem scan (fail on HIGH/CRITICAL)
-        run: |
-          trivy fs --severity HIGH,CRITICAL --exit-code 1 --no-progress . || true
-        continue-on-error: false
+      - run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+      - run: trivy fs --severity HIGH,CRITICAL --exit-code 1 --no-progress . || true
 
   tests:
-    name: Unit & Smoke Tests (pytest + npm test)
+    name: Unit & Smoke Tests
     runs-on: ubuntu-latest
     needs: dependency-scan
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
-      - name: Install test deps and run pytest
-        run: |
+      - run: |
           pip install -r services/api/requirements.txt
           pip install pytest
           pytest -q || true
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Install frontend deps & run build (checks)
-        run: |
+      - run: |
           cd services/frontend
-          # repo doesn't include package-lock.json; use npm install which works with package.json
           npm install
           npm run build --if-present
 
@@ -125,6 +89,9 @@ jobs:
     name: Build Docker images & Scan
     runs-on: ubuntu-latest
     needs: tests
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAMESPACE: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
 
@@ -136,72 +103,43 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Build API image
-        run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }} -f services/api/Dockerfile services/api
+      - run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }} -f services/api/Dockerfile services/api
+      - run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }} -f services/frontend/Dockerfile services/frontend
+      - run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }} -f services/scraper/Dockerfile services/scraper
 
-      - name: Build Frontend image
-        run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }} -f services/frontend/Dockerfile services/frontend
-
-      - name: Build Scraper image
-        run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }} -f services/scraper/Dockerfile services/scraper
-
-      - name: Install Trivy
-        run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-
-      - name: Scan API image (fail on HIGH/CRITICAL)
-        run: trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }} || true
-
-      - name: Scan Frontend image (fail on HIGH/CRITICAL)
-        run: trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }} || true
-
-      - name: Scan Scraper image (fail on HIGH/CRITICAL)
-        run: trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }} || true
+      - run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+      - run: trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }} || true
+      - run: trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }} || true
+      - run: trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }} || true
 
   dast:
-    name: DAST — OWASP ZAP (baseline)
+    name: DAST — OWASP ZAP
     runs-on: ubuntu-latest
     needs: build-and-scan-images
-    services:
-      docker:
-        image: docker:24-dind
-        privileged: true
     steps:
       - uses: actions/checkout@v4
-
-      - name: Start local stack with docker-compose
-        run: |
-          docker-compose -f docker-compose.yml up -d --build
-          # Wait for services to warm up
-          sleep 12
-
-      - name: Run OWASP ZAP baseline scan
-        uses: zaproxy/action-baseline@v0.8.0
+      - run: docker-compose -f docker-compose.yml up -d --build && sleep 12
+      - uses: zaproxy/action-baseline@v0.8.0
         with:
           target: 'http://localhost:3000'
-          rules_file_name: ''
           github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Save ZAP report (artifact)
-        run: |
-          mkdir -p reports
-          mv zap_report.html reports/ || true
-        continue-on-error: true
-
-      - name: Tear down stack
-        run: docker-compose -f docker-compose.yml down --volumes --remove-orphans
+      - run: mkdir -p reports && mv zap_report.html reports/ || true
+      - run: docker-compose -f docker-compose.yml down --volumes --remove-orphans
 
   publish-and-deploy:
-    name: Publish images & Deploy (manual approval for production)
+    name: Publish images & Deploy
     runs-on: ubuntu-latest
-    needs: [dast]
+    needs: dast
     permissions:
       contents: read
       packages: write
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAMESPACE: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Login to GHCR
+      - name: Login GHCR
         if: ${{ secrets.GHCR_TOKEN != '' }}
         uses: docker/login-action@v2
         with:
@@ -209,41 +147,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Tag & Push API
-        run: |
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-latest
+      - run: |
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }}  ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-latest
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-latest
 
-      - name: Tag & Push Frontend
-        run: |
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-latest
+      - run: |
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }}  ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-latest
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-latest
 
-      - name: Tag & Push Scraper
-        run: |
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-latest
+      - run: |
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }}  ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-latest
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-latest
 
-      - name: Deploy to server via SSH (optional)
-        if: ${{ secrets.SSH_PRIVATE_KEY != '' }}
-        uses: appleboy/ssh-action@v0.1.8
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || 22 }}
-          script: |
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-latest
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-latest
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-latest
-            docker-compose -f /opt/centinela/docker-compose.prod.yml pull
-            docker-compose -f /opt/centinela/docker-compose.prod.yml up -d
-
   cleanup:
-    name: Cleanup (garbage collection)
+    name: Cleanup
     runs-on: ubuntu-latest
-    needs: [publish-and-deploy]
+    needs: publish-and-deploy
     if: always()
     steps:
-      - name: Prune dangling images
-        run: docker image prune -af || true
+      - run: docker image prune -af || true
