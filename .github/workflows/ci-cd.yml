@@ -103,7 +103,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Login to GHCR
-        if: ${{ secrets.GHCR_TOKEN != '' }}
+        if: ${{ secrets.GHCR_TOKEN }}
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -112,19 +112,21 @@ jobs:
 
       - name: Build, scan and push images
         run: |
-          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }} -f services/api/Dockerfile services/api
-          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }} -f services/frontend/Dockerfile services/frontend
-          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }} -f services/scraper/scraper/Dockerfile services/scraper/scraper
+          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
+
+          docker build -t $REGISTRY/$IMAGE_NS:api-${{ github.run_id }} -f services/api/Dockerfile services/api
+          docker build -t $REGISTRY/$IMAGE_NS:frontend-${{ github.run_id }} -f services/frontend/Dockerfile services/frontend
+          docker build -t $REGISTRY/$IMAGE_NS:scraper-${{ github.run_id }} -f services/scraper/scraper/Dockerfile services/scraper/scraper
 
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
-          trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }} || true
-          trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }} || true
-          trivy image --severity HIGH,CRITICAL --exit-code 1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }} || true
+          trivy image --severity HIGH,CRITICAL --exit-code 1 $REGISTRY/$IMAGE_NS:api-${{ github.run_id }} || true
+          trivy image --severity HIGH,CRITICAL --exit-code 1 $REGISTRY/$IMAGE_NS:frontend-${{ github.run_id }} || true
+          trivy image --severity HIGH,CRITICAL --exit-code 1 $REGISTRY/$IMAGE_NS:scraper-${{ github.run_id }} || true
 
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }}
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }}
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }}
+          docker push $REGISTRY/$IMAGE_NS:api-${{ github.run_id }}
+          docker push $REGISTRY/$IMAGE_NS:frontend-${{ github.run_id }}
+          docker push $REGISTRY/$IMAGE_NS:scraper-${{ github.run_id }}
 
   dast:
     name: DAST — OWASP ZAP
@@ -137,7 +139,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Login to GHCR
-        if: ${{ secrets.GHCR_TOKEN != '' }}
+        if: ${{ secrets.GHCR_TOKEN }}
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -167,7 +169,7 @@ jobs:
       IMAGE_NAMESPACE: ${{ github.repository }}
     steps:
       - name: Login GHCR
-        if: ${{ secrets.GHCR_TOKEN != '' }}
+        if: ${{ secrets.GHCR_TOKEN }}
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -175,19 +177,25 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
 
       - run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }}
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-${{ github.run_id }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-latest
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:api-latest
+          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
+
+          docker pull $REGISTRY/$IMAGE_NS:api-${{ github.run_id }}
+          docker tag  $REGISTRY/$IMAGE_NS:api-${{ github.run_id }}  $REGISTRY/$IMAGE_NS:api-latest
+          docker push $REGISTRY/$IMAGE_NS:api-latest
 
       - run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }}
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ github.run_id }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-latest
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-latest
+          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
+
+          docker pull $REGISTRY/$IMAGE_NS:frontend-${{ github.run_id }}
+          docker tag  $REGISTRY/$IMAGE_NS:frontend-${{ github.run_id }}  $REGISTRY/$IMAGE_NS:frontend-latest
+          docker push $REGISTRY/$IMAGE_NS:frontend-latest
 
       - run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }}
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-${{ github.run_id }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-latest
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:scraper-latest
+          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
+
+          docker pull $REGISTRY/$IMAGE_NS:scraper-${{ github.run_id }}
+          docker tag  $REGISTRY/$IMAGE_NS:scraper-${{ github.run_id }}  $REGISTRY/$IMAGE_NS:scraper-latest
+          docker push $REGISTRY/$IMAGE_NS:scraper-latest
 
   cleanup:
     name: Cleanup
