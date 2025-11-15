@@ -133,8 +133,6 @@ jobs:
     needs: build-and-scan-images
     env:
       REGISTRY: ghcr.io
-      # --- ¡CORRECCIÓN LÓGICA! ---
-      # Pasamos las variables al docker-compose.yml
       IMAGE_NAMESPACE: ${{ github.repository }} # No se toca, esto funciona.
       IMAGE_TAG: ${{ github.run_id }}
       GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
@@ -150,11 +148,12 @@ jobs:
           password: ${{ env.GHCR_TOKEN }}
 
       - name: Run application stack
-        # --- ¡CORRECCIÓN! Pasamos las variables al 'pull' ---
-        env:
-          IMAGE_NAMESPACE: $(echo "${{ env.IMAGE_NAMESPACE }}" | tr '[:upper:]' '[:lower:]')
         run: |
-          # --- ¡CORRECCIÓN! 'docker compose' (con espacio) ---
+          # --- ¡CORRECCIÓN! Forzamos las variables a minúsculas ---
+          # y las exportamos para que 'docker compose' las lea
+          export IMAGE_NAMESPACE=$(echo "${{ env.IMAGE_NAMESPACE }}" | tr '[:upper:]' '[:lower:]')
+          export IMAGE_TAG=${{ env.IMAGE_TAG }}
+
           docker compose -f docker-compose.yml pull
           docker compose -f docker-compose.yml up -d && sleep 30
 
