@@ -116,21 +116,21 @@ jobs:
 
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
-          # --- ¡CORRECCIÓN! 1. Crear carpeta de reportes ---
           mkdir -p reports
+          trivy --download-db-only || true
 
-          # --- ¡CORRECCIÓN! 2. Escanear y guardar en JSON (con || true por ahora) ---
-          trivy image --format json --output reports/trivy-api.json --severity HIGH,CRITICAL --exit-code 1 $API_IMG_ID || true
-          trivy image --format json --output reports/trivy-frontend.json --severity HIGH,CRITICAL --exit-code 1 $FRONTEND_IMG_ID || true
-          trivy image --format json --output reports/trivy-scraper.json --severity HIGH,CRITICAL --exit-code 1 $SCRAPER_IMG_ID || true
+          # --- ¡AHORA FALLARÁ SI ENCUENTRA CVEs! ---
+          trivy image --format json --output reports/trivy-api.json --severity HIGH,CRITICAL --exit-code 1 $API_IMG_ID
+          trivy image --format json --output reports/trivy-frontend.json --severity HIGH,CRITICAL --exit-code 1 $FRONTEND_IMG_ID
+          trivy image --format json --output reports/trivy-scraper.json --severity HIGH,CRITICAL --exit-code 1 $SCRAPER_IMG_ID
 
           docker push $API_IMG_ID
           docker push $FRONTEND_IMG_ID
           docker push $SCRAPER_IMG_ID
 
-      # --- ¡CORRECCIÓN! 3. Subir los reportes de Trivy AQUI, no en DAST ---
+      # --- ¡CORRECCIÓN! Reportes de Trivy se suben AHORA ---
       - name: Upload Trivy reports
-        if: always()
+        if: always() # Subir reportes incluso si el 'step' anterior falló
         uses: actions/upload-artifact@v4
         with:
           name: trivy-reports
@@ -141,6 +141,9 @@ jobs:
     name: DAST — OWASP ZAP
     runs-on: ubuntu-latest
     needs: build-and-scan-images
+    # --- ¡CORRECCIÓN! Añadido if:always() ---
+    # Queremos que DAST corra incluso si el job de build falla (por Trivy)
+    if: always()
     env:
       REGISTRY: ghcr.io
       IMAGE_NAMESPACE: ${{ github.repository }}
@@ -166,7 +169,7 @@ jobs:
           docker compose -f docker-compose.yml up -d && sleep 30
 
       - name: Run ZAP Baseline Scan
-        continue-on-error: true
+        continue-on-error: true # Lo dejamos en true para que genere reporte sin fallar
         run: |
           mkdir -p reports
 
@@ -192,16 +195,16 @@ jobs:
             docker logs $FRONTEND_CID || true
           fi
 
-          # --- ¡CORRECCIÓN! La ruta del reporte es relativa (report_dast_zap.html) ---
+          # --- ¡CORRECCIÓN! La ruta del reporte es RELATIVA ---
           docker run --rm \
             --network "$NETWORK_NAME" \
             --name zap_scanner \
             -v "$(pwd)/reports":/zap/wrk \
             ghcr.io/zaproxy/zaproxy zap-baseline.py \
               -t http://frontend:80 \
-              -r report_dast_zap.html || true # El -r ahora es relativo
+              -r report_dast_zap.html || true # -r es ahora 'report_dast_zap.html'
 
-      # --- ¡ELIMINADO! El 'Upload Trivy reports' se fue al job anterior ---
+      # --- ¡ELIMINADO! 'Upload Trivy reports' se movió a 'build-and-scan-images' ---
 
       - name: Ensure ZAP report
         if: always()
