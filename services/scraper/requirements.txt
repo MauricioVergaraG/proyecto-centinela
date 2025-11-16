@@ -1,3 +1,5 @@
-beautifulsoup4
-requests
+# services/scraper/requirements.txt
+
+praw
 redis
+psycopg2-binary
