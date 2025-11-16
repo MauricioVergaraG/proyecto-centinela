@@ -192,7 +192,7 @@ jobs:
           # runner para evitar errores de 'manifest unknown' cuando no están
           # publicadas en el registry.
           echo "Building service images (frontend, api, scraper)"
-          DOCKER_BUILDKIT=1 docker compose -f docker-compose.yml build frontend api scraper 2>&1 | tee build-compose.log || BUILD_FAILED=1
+          DOCKER_BUILDKIT=1 docker compose -f docker-compose.yml build frontend api scraper --no-cache 2>&1 | tee build-compose.log || BUILD_FAILED=1
 
           if [ ! -z "${BUILD_FAILED}" ]; then
             echo "ERROR: docker compose build failed. Dumping build log to reports/build-compose.log"
@@ -237,8 +237,11 @@ jobs:
           # Ejecutar contenedor ZAP como root para evitar problemas de permisos
           # Ejecutar ZAP dentro del contenedor con el directorio de trabajo
           # puesto a /zap/wrk y pasar el nombre de archivo relativo a -r.
-          # Esto evita que ZAP construya rutas duplicadas como
-          # /zap/wrk/zap/wrk/report_dast_zap.html.
+          # Capturamos el código de salida de ZAP y lo guardamos en reports/
+          # para que el step no haga fallar el job inmediatamente (permitimos
+          # continuar para subir reportes y parsearlos en pasos posteriores).
+          # Esto evita que ZAP haga 'exit 2' y detenga el workflow antes de
+          # subir los artefactos.
           docker run --rm \
             -u 0 \
             --network "$NETWORK_NAME" \
@@ -248,9 +251,16 @@ jobs:
             ghcr.io/zaproxy/zaproxy zap-baseline.py \
               -t http://frontend:80 \
               -r report_dast_zap.html \
-              -J report_dast_zap.json
-              # NOTA: usamos '-w /zap/wrk' y ruta relativa para que el
-              # reporte termine en /zap/wrk/report_dast_zap.html (montado).
+              -J report_dast_zap.json || true
+
+          # Guardar el código de salida (si hubo) para diagnóstico posterior
+          ZAP_EXIT=${ZAP_EXIT:-$?}
+          mkdir -p reports || true
+          echo "$ZAP_EXIT" > reports/zap_exit_code.txt || true
+          echo "ZAP exit code: $ZAP_EXIT"
+          # NOTA: el paso continúa siempre; la decisión de crear un issue o
+          # fallar el pipeline se realiza al parsear el JSON y contar
+          # HIGH/CRITICAL en pasos posteriores.
 
       - name: Ensure ZAP report
         if: always()
@@ -393,6 +403,20 @@ jobs:
           DAST_HIGH: ${{ steps.set-dast-output.outputs.dast_high }}
           DAST_TOTAL: ${{ steps.set-dast-output.outputs.dast_total }}
 
+      - name: Fail job if critical/high findings
+        if: always() # Asegurarse de que corra
+        run: |
+          CRITICAL=${{ steps.set-dast-output.outputs.dast_critical }}
+          HIGH=${{ steps.set-dast-output.outputs.dast_high }}
+
+          echo "Findings: $CRITICAL critical, $HIGH high"
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "::error:: DAST found $CRITICAL critical and $HIGH high vulnerabilities. Failing build."
+            exit 1
+          else
+            echo "DAST scan passed."
+          fi
+
       - name: Stop application stack
         if: always()
         run: docker compose -f docker-compose.yml down --volumes --remove-orphans
@@ -443,3 +467,62 @@ jobs:
     if: always()
     steps:
       - run: docker image prune -af || true
+
+      # --- ¡ESTE ES EL NUEVO JOB! ---
+  deploy-to-production:
+    name: "Deploy to Production"
+    runs-on: ubuntu-latest
+
+    # Solo se ejecuta si el job 'publish-and-deploy' tuvo éxito
+    needs: publish-and-deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io
+
+    steps:
+      - name: 1. Checkout (para obtener el docker-compose.yml)
+        uses: actions/checkout@v4
+
+      - name: 2. Configurar clave SSH
+        # Esta acción instala la clave SSH en el runner
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.DEPLOY_KEY }}
+          known_hosts: 'placeholder' # Necesario, pero lo sobreescribimos
+
+      - name: 3. Añadir IP del host a known_hosts
+        # Esto previene el "pop-up" de "confías en este host?"
+        run: |
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 4. Desplegar en el Servidor
+        run: |
+          # 1. Definir el usuario y host
+          REMOTE_HOST="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
+
+          # 2. (¡Importante!) Copiar el docker-compose.yml al servidor
+          #    Esto asegura que el servidor tenga la última versión del compose
+          scp -o StrictHostKeyChecking=no docker-compose.yml $REMOTE_HOST:/home/ubuntu/centinela/docker-compose.yml
+
+          # 3. Conectarse por SSH y ejecutar los comandos de despliegue
+          ssh -o StrictHostKeyChecking=no $REMOTE_HOST << 'EOF'
+
+            # Navegar a la carpeta del proyecto en el servidor
+            cd /home/ubuntu/centinela
+
+            # ¡Importante! Iniciar sesión en GHCR (el registro)
+            # El servidor necesita permiso para jalar tus imágenes privadas
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Jalar (pull) las nuevas imágenes :latest
+            docker compose pull
+
+            # Reiniciar la aplicación con las nuevas imágenes
+            docker compose up -d
+
+            # Limpiar imágenes antiguas
+            docker image prune -af
