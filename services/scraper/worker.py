@@ -143,7 +143,7 @@ def main():
                         print(f"❌ Trabajo completado: No se encontraron comentarios.")
 
         except redis.exceptions.ConnectionError as e:
-            print(f"Error de conexión con Redis: {e}. Reintentando...")
+            print("Error inesperado. Reintentando...")
             time.sleep(5)
         except Exception as e:
             print(f"Error inesperado: {e}")

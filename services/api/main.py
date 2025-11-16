@@ -95,7 +95,7 @@ async def health():
     try:
         conn = get_db_connection()
         conn.close()
-    except:
+    except Exception:
         db_status = "disconnected"
 
     if redis_status == "ok" and db_status == "ok":
