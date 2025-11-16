@@ -140,10 +140,10 @@ def main():
                         # En lugar de solo imprimir, ¡ahora guardamos!
                         save_comments_to_db(comments)
                     else:
-                        print(f"❌ Trabajo completado: No se encontraron comentarios.")
+                        print("❌ Trabajo completado: No se encontraron comentarios.")
 
         except redis.exceptions.ConnectionError as e:
-            print("Error inesperado. Reintentando...")
+            print(f"Error de conexión con Redis: {e}. Reintentando...")
             time.sleep(5)
         except Exception as e:
             print(f"Error inesperado: {e}")
