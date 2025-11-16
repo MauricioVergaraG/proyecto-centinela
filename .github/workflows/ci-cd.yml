@@ -141,8 +141,9 @@ jobs:
     name: DAST — OWASP ZAP
     runs-on: ubuntu-latest
     needs: build-and-scan-images
-    # --- ¡CORRECCIÓN! Añadido if:always() ---
-    # Queremos que DAST corra incluso si el job de build falla (por Trivy)
+    # --- ¡IMPORTANTE! Añadido if:always() ---
+    # Esto asegura que DAST corra incluso si el job de build
+    # falla (ej. por un fallo de Trivy que SÍ queremos ver)
     if: always()
     env:
       REGISTRY: ghcr.io
@@ -169,7 +170,7 @@ jobs:
           docker compose -f docker-compose.yml up -d && sleep 30
 
       - name: Run ZAP Baseline Scan
-        continue-on-error: true # Lo dejamos en true para que genere reporte sin fallar
+        # Ejecutar ZAP y dejar que el step falle si hay problemas (bloqueante)
         run: |
           mkdir -p reports
 
@@ -195,16 +196,17 @@ jobs:
             docker logs $FRONTEND_CID || true
           fi
 
-          # --- ¡CORRECCIÓN! La ruta del reporte es RELATIVA ---
+          # Ejecutar contenedor ZAP como root para evitar problemas de permisos
           docker run --rm \
+            -u 0 \
             --network "$NETWORK_NAME" \
             --name zap_scanner \
             -v "$(pwd)/reports":/zap/wrk \
             ghcr.io/zaproxy/zaproxy zap-baseline.py \
               -t http://frontend:80 \
-              -r report_dast_zap.html || true # -r es ahora 'report_dast_zap.html'
-
-      # --- ¡ELIMINADO! 'Upload Trivy reports' se movió a 'build-and-scan-images' ---
+              -r /zap/wrk/report_dast_zap.html
+              # NOTA: ejecutamos con '-u 0' para que el proceso dentro del
+              # contenedor pueda crear el archivo en el volumen montado.
 
       - name: Ensure ZAP report
         if: always()
