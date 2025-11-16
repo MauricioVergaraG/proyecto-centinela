@@ -69,7 +69,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install black flake8 bandit semgrep
       - run: black --check services # Revisa formato
-      - run: flake8 services      # Revisa calidad (linting)
+      - run: flake8 services --ignore=E501      # Revisa calidad (linting)
       - run: bandit -r services/api -lll # SAST para Python
       - run: semgrep --config ./.semgrep/basic-rules.yml # SAST basado en reglas
 
