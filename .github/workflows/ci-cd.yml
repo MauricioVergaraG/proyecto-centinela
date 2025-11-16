@@ -124,6 +124,16 @@ jobs:
           trivy image --format json --output reports/trivy-frontend.json --severity HIGH,CRITICAL --exit-code 1 $FRONTEND_IMG_ID
           trivy image --format json --output reports/trivy-scraper.json --severity HIGH,CRITICAL --exit-code 1 $SCRAPER_IMG_ID
 
+          # También generamos reportes HTML legibles usando la plantilla incluida
+          # en Trivy (si está disponible). No deberían impedir el exit code.
+          trivy image --format template --template @contrib/html.tpl --output reports/trivy-api.html $API_IMG_ID || true
+          trivy image --format template --template @contrib/html.tpl --output reports/trivy-frontend.html $FRONTEND_IMG_ID || true
+          trivy image --format template --template @contrib/html.tpl --output reports/trivy-scraper.html $SCRAPER_IMG_ID || true
+
+          # Empaquetar todos los reportes en un ZIP para facilitar descarga
+          cd reports && zip -r ../trivy-reports-${{ github.run_id }}.zip . || true
+          cd - >/dev/null || true
+
           docker push $API_IMG_ID
           docker push $FRONTEND_IMG_ID
           docker push $SCRAPER_IMG_ID
@@ -134,7 +144,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: trivy-reports
-          path: reports/*.json
+          path: |
+            reports/*.json
+            reports/*.html
+            trivy-reports-*.zip
           if-no-files-found: ignore
 
   dast:
