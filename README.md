@@ -1,4 +1,5 @@
 # Proyecto Centinela
+[![CI/CD](https://github.com/MauricioVergaraG/proyecto-centinela/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/MauricioVergaraG/proyecto-centinela/actions/workflows/ci-cd.yml)
 **Autor:** Mauricio Vergara
 **Fecha inicio:** 2025-11-15
 **Descripción corta:** MVP contenerizado para análisis de desinformación (Centinela). Contiene: API (FastAPI), Worker de scraping (stub), Frontend (React stub), Postgres y Redis para integración local con `docker-compose`.

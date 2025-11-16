@@ -154,6 +154,15 @@ jobs:
     name: DAST — OWASP ZAP
     runs-on: ubuntu-latest
     needs: build-and-scan-images
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      actions: read
+    outputs:
+      dast_critical: ${{ steps.set-dast-output.outputs.dast_critical }}
+      dast_high: ${{ steps.set-dast-output.outputs.dast_high }}
+      dast_total: ${{ steps.set-dast-output.outputs.dast_total }}
     # --- ¡IMPORTANTE! Añadido if:always() ---
     # Esto asegura que DAST corra incluso si el job de build
     # falla (ej. por un fallo de Trivy que SÍ queremos ver)
@@ -238,7 +247,8 @@ jobs:
             -w /zap/wrk \
             ghcr.io/zaproxy/zaproxy zap-baseline.py \
               -t http://frontend:80 \
-              -r report_dast_zap.html
+              -r report_dast_zap.html \
+              -J report_dast_zap.json
               # NOTA: usamos '-w /zap/wrk' y ruta relativa para que el
               # reporte termine en /zap/wrk/report_dast_zap.html (montado).
 
@@ -260,6 +270,128 @@ jobs:
           name: reporte-dast-zap
           path: reports/report_dast_zap.html
           if-no-files-found: ignore
+
+      - name: Upload ZAP JSON report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-dast-zap-json
+          path: reports/report_dast_zap.json
+          if-no-files-found: ignore
+
+      - name: Collect frontend headers (debug)
+        if: always()
+        run: |
+          mkdir -p reports || true
+          FRONTEND_CID=$(docker compose ps -q frontend)
+          if [ -z "$FRONTEND_CID" ]; then
+            echo "WARNING: frontend container missing for headers collection"
+          else
+            NETWORK_NAME=$(docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' $FRONTEND_CID | awk '{print $1}')
+            docker run --rm --network "$NETWORK_NAME" curlimages/curl:8.5.0 -sI http://frontend:80 > reports/frontend-headers.txt || true
+          fi
+
+      - name: Upload frontend headers (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-headers
+          path: reports/frontend-headers.txt
+          if-no-files-found: ignore
+
+      - name: Parse ZAP JSON & set outputs
+        id: set-dast-output
+        if: always()
+        run: |
+          set -euo pipefail || true
+          mkdir -p reports || true
+          if [ ! -f reports/report_dast_zap.json ]; then
+            echo "dast_critical=0" >> $GITHUB_OUTPUT
+            echo "dast_high=0" >> $GITHUB_OUTPUT
+            echo "dast_total=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # ensure jq is available
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update -y && sudo apt-get install -y jq || true
+          fi
+
+          # Count alerts by risk level
+          total=$(jq '[.site[]?.alerts[]?] | length' reports/report_dast_zap.json || echo 0)
+          critical=$(jq '[.site[]?.alerts[]? | select(.risk=="High" or .risk=="Critical")] | length' reports/report_dast_zap.json || echo 0)
+          high=$(jq '[.site[]?.alerts[]? | select(.risk=="High")] | length' reports/report_dast_zap.json || echo 0)
+          medium=$(jq '[.site[]?.alerts[]? | select(.risk=="Medium")] | length' reports/report_dast_zap.json || echo 0)
+          low=$(jq '[.site[]?.alerts[]? | select(.risk=="Low")] | length' reports/report_dast_zap.json || echo 0)
+
+          echo "dast_critical=$critical" >> $GITHUB_OUTPUT
+          echo "dast_high=$high" >> $GITHUB_OUTPUT
+          echo "dast_total=$total" >> $GITHUB_OUTPUT
+          echo "Parsed DAST counts: total=$total critical=$critical high=$high medium=$medium low=$low"
+
+      - name: Create issue or comment if HIGH/CRITICAL findings
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = './reports/report_dast_zap.json';
+            const critical = parseInt(process.env.DAST_CRITICAL || '0');
+            const high = parseInt(process.env.DAST_HIGH || '0');
+            const total = parseInt(process.env.DAST_TOTAL || '0');
+            const runUrl = `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+            let topAlertsSection = '';
+            try {
+              if (fs.existsSync(path)) {
+                const raw = fs.readFileSync(path, 'utf8');
+                const json = JSON.parse(raw);
+                const alerts = (json.site || []).flatMap(s => s.alerts || []);
+                if (alerts.length > 0) {
+                  // Build a top-5 list with name, risk and a sample URI
+                  const top = alerts.slice(0, 5).map(a => {
+                    const name = a.name || a.alert || 'Unknown alert';
+                    const risk = a.risk || a.riskcode || 'Unknown';
+                    let uri = 'n/a';
+                    if (Array.isArray(a.instances) && a.instances.length > 0) {
+                      uri = a.instances[0].uri || a.instances[0].evidence || 'n/a';
+                    } else if (a.uri) {
+                      uri = a.uri;
+                    }
+                    return `- **${name}** (_${risk}_) — ${uri}`;
+                  }).join('\n');
+                  topAlertsSection = `\nTop alerts (first 5):\n${top}\n`;
+                }
+              }
+            } catch (e) {
+              core.warning('Failed to read/parse ZAP JSON for top alerts: ' + e.message);
+            }
+
+            if (critical > 0 || high > 0) {
+              const body = `DAST scan detected issues:\n- total alerts: ${total}\n- critical: ${critical}\n- high: ${high}\n${topAlertsSection}\nPlease review the DAST report artifacts attached to this workflow run: ${runUrl}\n`;
+              if (github.context.payload && github.context.payload.pull_request) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: github.context.payload.pull_request.number,
+                  body
+                });
+              } else {
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: `DAST findings: ${critical} critical / ${high} high (run #${process.env.GITHUB_RUN_ID})`,
+                  body
+                });
+              }
+            } else {
+              core.info('No HIGH/CRITICAL DAST findings — no issue/comment created');
+            }
+        env:
+          DAST_CRITICAL: ${{ steps.set-dast-output.outputs.dast_critical }}
+          DAST_HIGH: ${{ steps.set-dast-output.outputs.dast_high }}
+          DAST_TOTAL: ${{ steps.set-dast-output.outputs.dast_total }}
 
       - name: Stop application stack
         if: always()
