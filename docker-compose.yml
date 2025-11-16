@@ -1,3 +1,6 @@
+# Añadimos la versión para buenas prácticas
+version: '3.8'
+
 services:
   db:
     image: postgres:15
@@ -7,40 +10,57 @@ services:
       POSTGRES_DB: centinela
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # Es buena práctica añadir un healthcheck
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U centinela"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   api:
-    # --- ¡CAMBIO! ---
-    # ghcr.io/TU_REPO/api:${IMAGE_TAG:-latest}
     image: ghcr.io/${IMAGE_NAMESPACE:-local}/api:${IMAGE_TAG:-latest}
     build: ./services/api
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://centinela:secret@db/centinela
-      BROKER_URL: redis://redis:6379/0
+      REDIS_HOST: redis # --- El script de la API usa REDIS_HOST ---
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy # Espera a que la BD esté lista
+      redis:
+        condition: service_healthy # Espera a que Redis esté listo
 
   scraper:
-    # --- ¡CAMBIO! ---
     image: ghcr.io/${IMAGE_NAMESPACE:-local}/scraper:${IMAGE_TAG:-latest}
     build: ./services/scraper
-    environment:
-      BROKER_URL: redis://redis:6379/0
+    # Añadimos 'restart' para que el worker se levante solo si falla.
+    restart: unless-stopped
+    # El scraper depende de 'db' (para guardar) y 'redis' (para la cola).
     depends_on:
-      - redis
-      - api
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   frontend:
-    # --- ¡CAMBIO! ---
     image: ghcr.io/${IMAGE_NAMESPACE:-local}/frontend:${IMAGE_TAG:-latest}
     build: ./services/frontend
     ports:
       - "3000:80"
+    # El frontend depende de que la API esté disponible
+    depends_on:
+      - api
 
 volumes:
   pgdata:
+
+# (El bloque 'scraper' duplicado se ha eliminado de aquí)

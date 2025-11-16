@@ -1,5 +1,5 @@
 # services/scraper/requirements.txt
 
-praw
+requests
 redis
 psycopg2-binary
