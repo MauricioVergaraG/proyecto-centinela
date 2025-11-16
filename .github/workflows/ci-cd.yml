@@ -197,16 +197,21 @@ jobs:
           fi
 
           # Ejecutar contenedor ZAP como root para evitar problemas de permisos
+          # Ejecutar ZAP dentro del contenedor con el directorio de trabajo
+          # puesto a /zap/wrk y pasar el nombre de archivo relativo a -r.
+          # Esto evita que ZAP construya rutas duplicadas como
+          # /zap/wrk/zap/wrk/report_dast_zap.html.
           docker run --rm \
             -u 0 \
             --network "$NETWORK_NAME" \
             --name zap_scanner \
             -v "$(pwd)/reports":/zap/wrk \
+            -w /zap/wrk \
             ghcr.io/zaproxy/zaproxy zap-baseline.py \
               -t http://frontend:80 \
-              -r /zap/wrk/report_dast_zap.html
-              # NOTA: ejecutamos con '-u 0' para que el proceso dentro del
-              # contenedor pueda crear el archivo en el volumen montado.
+              -r report_dast_zap.html
+              # NOTA: usamos '-w /zap/wrk' y ruta relativa para que el
+              # reporte termine en /zap/wrk/report_dast_zap.html (montado).
 
       - name: Ensure ZAP report
         if: always()
