@@ -1,5 +1,3 @@
-# services/scraper/requirements.txt
-
 requests
 redis
 psycopg2-binary

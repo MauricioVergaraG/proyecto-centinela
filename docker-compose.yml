@@ -31,8 +31,9 @@ services:
     ports:
       - "8000:8000"
     environment:
+      # --- ARREGLO: Se eliminó la variable duplicada ---
       DATABASE_URL: postgresql://centinela:secret@db/centinela
-      REDIS_HOST: redis # --- El script de la API usa REDIS_HOST ---
+      REDIS_HOST: redis
     depends_on:
       db:
         condition: service_healthy # Espera a que la BD esté lista
@@ -42,9 +43,9 @@ services:
   scraper:
     image: ghcr.io/${IMAGE_NAMESPACE:-local}/scraper:${IMAGE_TAG:-latest}
     build: ./services/scraper
-    # Añadimos 'restart' para que el worker se levante solo si falla.
     restart: unless-stopped
-    # El scraper depende de 'db' (para guardar) y 'redis' (para la cola).
+    environment:
+      DATABASE_URL: postgresql://centinela:secret@db/centinela
     depends_on:
       db:
         condition: service_healthy
@@ -63,4 +64,4 @@ services:
 volumes:
   pgdata:
 
-# (El bloque 'scraper' duplicado se ha eliminado de aquí)
+# --- ARREGLO: El bloque 'scraper' duplicado se ha eliminado de aquí ---
