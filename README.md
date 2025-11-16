@@ -6,7 +6,7 @@
 
 ## Requisitos
 - Docker & Docker Compose (v2+)
-- Node (para desarrollo frontend, opcional si usás solo container)
+- Node (para desarrollo frontend, opcional si usás solo  container)
 - GitHub account (para CI/CD y GHCR)
 
 ## Levantar local (rápido)
