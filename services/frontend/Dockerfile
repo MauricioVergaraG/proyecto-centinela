@@ -4,11 +4,13 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copia el package.json y package-lock.json
+# Copia el package.json y package-lock.json (si existe)
 COPY package.json package-lock.json* ./
 
-# Instala dependencias de forma determinista (usa package-lock)
-RUN npm ci
+# Instala dependencias: usa 'npm ci' si existe package-lock.json, si no cae
+# de forma segura a 'npm install' (útil para entornos donde aún no se creó
+# el package-lock.json).
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 # Copia el resto del código fuente
 COPY . .

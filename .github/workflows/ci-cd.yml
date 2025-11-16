@@ -179,8 +179,12 @@ jobs:
           export IMAGE_NAMESPACE=$(echo "${{ env.IMAGE_NAMESPACE }}" | tr '[:upper:]' '[:lower:]')
           export IMAGE_TAG=${{ env.IMAGE_TAG }}
 
-          docker compose -f docker-compose.yml pull
-          docker compose -f docker-compose.yml up -d && sleep 30
+          # Intentar 'pull' (si las imágenes existen en el registry). No fallar
+          # si no están (manifest unknown) — en ese caso construiremos localmente.
+          docker compose -f docker-compose.yml pull || true
+
+          # Levanta el stack, forzando build local de las imágenes si son necesarias.
+          docker compose -f docker-compose.yml up -d --build && sleep 30
 
       - name: Run ZAP Baseline Scan
         # Ejecutar ZAP y dejar que el step falle si hay problemas (bloqueante)
