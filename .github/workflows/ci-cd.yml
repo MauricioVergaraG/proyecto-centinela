@@ -347,6 +347,7 @@ jobs:
       - name: Create issue or comment if HIGH/CRITICAL findings
         if: always()
         uses: actions/github-script@v6
+        continue-on-error: true
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
