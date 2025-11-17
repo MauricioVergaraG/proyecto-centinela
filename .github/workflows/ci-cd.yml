@@ -397,37 +397,59 @@ jobs:
       - run: docker image prune -af || true
 
   # ------------------------------------------------------------------
-  # Job 10: Despliegue a Producción (CD)
+  # Job 10: Despliegue a Producción (SIMULADO)
   # ------------------------------------------------------------------
   deploy-to-production:
-    name: "Deploy to Production"
+    # Agregamos (SIMULATED) al nombre para que sea claro en la UI
+    name: "Deploy to Production (SIMULATED)" 
     runs-on: ubuntu-latest
     needs: publish-and-deploy
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    # Mantenemos los permisos y env por si acaso
     permissions:
       contents: read
       packages: write
     env:
       REGISTRY: ghcr.io
+      # Definimos variables falsas para usar en la simulación
+      # No necesitas crear estos secretos
+      SIM_DEPLOY_USER: "ubuntu"
+      SIM_DEPLOY_HOST: "123.45.67.89"
+
     steps:
       - name: 1. Checkout (para obtener el docker-compose.yml)
         uses: actions/checkout@v4
-      - name: 2. Configurar clave SSH
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.DEPLOY_KEY }}
-          known_hosts: 'placeholder'
-      - name: 3. Añadir IP del host a known_hosts
+
+      # --- INICIO DE LA SIMULACIÓN ---
+      # Eliminamos los pasos que requieren secretos (ssh-key-action, ssh-keyscan)
+      # y los reemplazamos con comandos 'echo' que imprimen lo que harían.
+
+      - name: 2. (SIMULADO) Configurar clave SSH
         run: |
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
-      - name: 4. Desplegar en el Servidor
+          echo "Simulando configuración de clave SSH..."
+          echo "Se usaría 'secrets.DEPLOY_KEY' para autenticarse."
+          mkdir -p ~/.ssh
+          echo "Directorio ~/.ssh creado (simulado)."
+
+      - name: 3. (SIMULADO) Añadir IP del host a known_hosts
         run: |
-          REMOTE_HOST="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
-          scp -o StrictHostKeyChecking=no docker-compose.yml $REMOTE_HOST:/home/ubuntu/centinela/docker-compose.yml
-          ssh -o StrictHostKeyChecking=no $REMOTE_HOST << 'EOF'
-            cd /home/ubuntu/centinela
-            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker compose pull
-            docker compose up -d
-            docker image prune -af
-          EOF
+          echo "Simulando ssh-keyscan -H $SIM_DEPLOY_HOST >> ~/.ssh/known_hosts"
+          echo "Host de producción añadido a known_hosts (simulado)."
+
+      - name: 4. (SIMULADO) Desplegar en el Servidor
+        run: |
+          echo "Simulación de despliegue en $SIM_DEPLOY_USER@$SIM_DEPLOY_HOST..."
+          echo "--------------------------------------------------------"
+          echo "PASO 1: Copiar docker-compose.yml al servidor"
+          echo "COMANDO: scp -o StrictHostKeyChecking=no docker-compose.yml $SIM_DEPLOY_USER@$SIM_DEPLOY_HOST:/home/ubuntu/centinela/"
+          echo ""
+          echo "PASO 2: Ejecutar comandos de despliegue en el servidor vía SSH"
+          echo "COMANDO: ssh -o StrictHostKeyChecking=no $SIM_DEPLOY_USER@$SIM_DEPLOY_HOST"
+          echo "   > cd /home/ubuntu/centinela"
+          echo "   > echo '***' | docker login ghcr.io -u ${{ github.actor }} --password-stdin"
+          echo "   > docker compose pull"
+          echo "   > docker compose up -d"
+          echo "   > docker image prune -af"
+          echo "--------------------------------------------------------"
+          echo "¡Despliegue simulado exitosamente!"
