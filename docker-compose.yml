@@ -42,10 +42,6 @@ services:
     image: ghcr.io/${IMAGE_NAMESPACE:-local}/scraper:${IMAGE_TAG:-latest}
     build: ./services/scraper
     restart: unless-stopped
-
-    # --- ¡CAMBIO AQUÍ! ---
-    # Le decimos al scraper que lea el archivo .env
-    # para obtener la clave de NewsAPI.
     env_file:
       - ./.env
 
