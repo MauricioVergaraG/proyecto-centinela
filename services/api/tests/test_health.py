@@ -8,6 +8,7 @@ from ..app.main import app
 
 client = TestClient(app)
 
+
 def test_health_ok():
     response = client.get("/health")
 
@@ -17,8 +18,8 @@ def test_health_ok():
     body = response.json()
 
     if response.status_code == 200:
-        assert 'status' in body
-        assert body['status'] == 'ok'
+        assert "status" in body
+        assert body["status"] == "ok"
     else:
         # Si es 503, esperamos 'detail'
-        assert 'detail' in body
+        assert "detail" in body
