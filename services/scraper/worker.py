@@ -98,9 +98,12 @@ def save_comments_to_db(comments):
                 """
                 INSERT INTO comments (author, body, score, permalink)
                 VALUES %s
-                ON CONFLICT (permalink) DO NOTHING
+                ON CONFLICT (permalink) DO UPDATE SET
+                    body = EXCLUDED.body,
+                    score = EXCLUDED.score,
+                    created_at = CURRENT_TIMESTAMP
                 """,
-                values,
+                values
             )
             print(f"✅ Se guardaron/actualizaron {len(values)} comentarios en la BD.")
     except psycopg2.Error as e:

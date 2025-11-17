@@ -3,14 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Proyecto Centinela</title>
+    <!-- Título de la App (¡Actualizado!) -->
+    <title>Centinela Group Three</title>
+
+    <!-- Carga de Dependencias (Tailwind, React, Babel) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
     <style>
         body { background-color: #f0f4f8; }
-        /* Simple scrollbar para la lista de comentarios */
         .comment-list::-webkit-scrollbar { width: 6px; }
         .comment-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .comment-list::-webkit-scrollbar-thumb:hover { background: #a0aec0; }
@@ -18,10 +21,12 @@
 </head>
 <body class="h-full flex items-center justify-center py-12 px-4">
 
+    <!-- El 'root' donde vivirá nuestra app React -->
     <div id="root" class="w-full max-w-2xl p-4"></div>
 
+    <!-- Nuestra aplicación React completa -->
     <script type="text/babel">
-        // --- Iconos SVG (sin cambios) ---
+        // --- Iconos SVG ---
         const IconoBusqueda = () => (
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
         );
@@ -31,16 +36,12 @@
         const IconoSpinner = () => (
             <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
         );
-        const IconoPuntos = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"></path><path d="M10 10l4 4m0-4l-4 4"></path></svg>
-        );
         const IconoLink = () => (
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
         );
 
         // --- Componente para un solo Comentario ---
         function CommentCard({ comment }) {
-            // Decodificar HTML (ej. &quot; se vuelve ")
             const decodedBody = () => {
                 const txt = document.createElement("textarea");
                 txt.innerHTML = comment.body;
@@ -77,12 +78,9 @@
             const [keyword, setKeyword] = React.useState("");
             const [isLoading, setIsLoading] = React.useState(false);
             const [message, setMessage] = React.useState(null);
-
-            // --- ¡NUEVO! Estado para los resultados de la BD ---
             const [comments, setComments] = React.useState([]);
             const [isLoadingComments, setIsLoadingComments] = React.useState(true);
 
-            // --- ¡NUEVO! Función para obtener resultados ---
             const fetchResults = async () => {
                 try {
                     const response = await fetch('http://localhost:8000/results?limit=50');
@@ -91,23 +89,17 @@
                     setComments(data);
                 } catch (error) {
                     console.error("Error fetching results:", error);
-                    // No mostramos error de UI, solo fallamos silenciosamente
                 } finally {
                     setIsLoadingComments(false);
                 }
             };
 
-            // --- ¡NUEVO! useEffect para polling ---
-            // Llama a fetchResults() al cargar y luego cada 3 segundos
             React.useEffect(() => {
-                fetchResults(); // Carga inicial
+                fetchResults();
                 const intervalId = setInterval(fetchResults, 3000); // Polling
-
-                // Limpiar el intervalo cuando el componente se desmonte
                 return () => clearInterval(intervalId);
-            }, []); // El array vacío [] significa "ejecutar solo una vez al montar"
+            }, []);
 
-            // Función para manejar el envío del formulario
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 setIsLoading(true);
@@ -125,10 +117,7 @@
                     setMessage({ type: 'success', text: `¡Éxito! Trabajo para "${keyword}" enviado.` });
                     setKeyword("");
 
-                    // --- ¡NUEVO! ---
-                    // Después de enviar, refresca los resultados inmediatamente
-                    setTimeout(fetchResults, 500); // Da 500ms para que el worker empiece
-
+                    setTimeout(fetchResults, 500);
                 } catch (error) {
                     console.error("Error al enviar el trabajo:", error);
                     setMessage({ type: 'error', text: `Error: ${error.message}.` });
@@ -139,9 +128,12 @@
 
             return (
                 <div className="bg-white shadow-xl rounded-2xl p-8 max-w-2xl w-full">
-                    {/* --- Encabezado --- */}
-                    <div className="flex justify-between items-center mb-6">
-                        <h1 className="text-3xl font-bold text-gray-800">Proyecto Centinela</h1>
+
+                    {/* --- ENCABEZADO Y BOTÓN DE AYUDA --- */}
+                    <div className="flex justify-between items-center mb-4">
+                        <h1 className="text-3xl font-bold text-gray-800">
+                            Centinela Group Three
+                        </h1>
                         <a
                             href="./README_APP.md"
                             target="_blank"
@@ -152,6 +144,21 @@
                             <span className="hidden sm:inline">Ayuda</span>
                         </a>
                     </div>
+
+                    {/* --- ¡NUEVA SECCIÓN DE BRANDING! --- */}
+                    <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+                        {/* Esta ruta './logo.png' asume que 'logo.png' está
+                          en la misma carpeta que 'index.html' (services/frontend/)
+                          ¡Asegúrate de que tu Dockerfile lo copia!
+                        */}
+                        <img src="./logo.png" alt="Logo Grupo 3" className="w-16 h-16 rounded-full shadow-md" />
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-700">Proyecto del Grupo 3</h2>
+                            <p className="text-sm text-gray-500">Uniminuto - Especialización en Ciberseguridad</p>
+                        </div>
+                    </div>
+                    {/* --- FIN DE SECCIÓN DE BRANDING --- */}
+
 
                     <p className="text-gray-600 mb-8 text-lg">
                         Introduce un término clave para analizar los comentarios de Hacker News.
@@ -188,7 +195,7 @@
                         </div>
                     )}
 
-                    {/* --- ¡NUEVO! Sección de Resultados --- */}
+                    {/* --- Sección de Resultados --- */}
                     <div className="mt-10">
                         <h2 className="text-2xl font-semibold text-gray-700 mb-4 border-b pb-2">
                             Resultados en Vivo

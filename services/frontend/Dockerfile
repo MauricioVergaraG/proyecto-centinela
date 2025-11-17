@@ -9,6 +9,9 @@ COPY index.html /usr/share/nginx/html/index.html
 # Copiamos el archivo de ayuda
 COPY README_APP.md /usr/share/nginx/html/README_APP.md
 
+# --- ¡NUEVA LÍNEA! Copia el logo. ---
+COPY src/images/logo.png /usr/share/nginx/html/logo.png
+
 # Copiamos nuestro archivo de configuración de Nginx (con cabeceras de seguridad)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
