@@ -96,7 +96,7 @@ jobs:
             output_format: cli
             soft_fail: true
 
-  # ------------------------------------------------------------------
+ # ------------------------------------------------------------------
   # Job 5: Pruebas Unitarias y de Integración
   # ------------------------------------------------------------------
   tests:
@@ -114,8 +114,10 @@ jobs:
         run: |
           pip install -r services/api/requirements.txt
           pip install pytest
-          export PYTHONPATH=$(pwd)
-          pytest -q services/api/tests/
+          # --- ¡ARREGLO! ---
+          # Ya no necesitamos 'export PYTHONPATH'.
+          # Simplemente corremos 'pytest' y dejamos que descubra los tests.
+          pytest -q
 
       - uses: actions/setup-node@v4
         with:
