@@ -1,6 +1,6 @@
 # services/api/tests/test_health.py
 from fastapi.testclient import TestClient
-from services.api.app.main import app
+from services.api.main import app
 
 client = TestClient(app)
 

@@ -118,6 +118,8 @@ jobs:
           pip install -r services/api/requirements.txt
           pip install pytest
 
+          export PYTHONPATH=$GITHUB_WORKSPACE
+
           # 2. Exportar la raíz del proyecto al PYTHONPATH
           # Esto asegura que Python encuentre la carpeta 'services'
           export PYTHONPATH=$(pwd)
