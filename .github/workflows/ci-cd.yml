@@ -325,7 +325,6 @@ jobs:
         # Si este paso falla, no debe fallar el build
         continue-on-error: true
         uses: actions/github-script@v6
-        continue-on-error: true
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
