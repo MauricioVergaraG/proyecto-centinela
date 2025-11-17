@@ -10,7 +10,6 @@ services:
       POSTGRES_DB: centinela
     volumes:
       - pgdata:/var/lib/postgresql/data
-    # Es buena práctica añadir un healthcheck
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U centinela"]
       interval: 10s
@@ -31,21 +30,28 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # --- ARREGLO: Se eliminó la variable duplicada ---
       DATABASE_URL: postgresql://centinela:secret@db/centinela
       REDIS_HOST: redis
     depends_on:
       db:
-        condition: service_healthy # Espera a que la BD esté lista
+        condition: service_healthy
       redis:
-        condition: service_healthy # Espera a que Redis esté listo
+        condition: service_healthy
 
   scraper:
     image: ghcr.io/${IMAGE_NAMESPACE:-local}/scraper:${IMAGE_TAG:-latest}
     build: ./services/scraper
     restart: unless-stopped
+
+    # --- ¡CAMBIO AQUÍ! ---
+    # Le decimos al scraper que lea el archivo .env
+    # para obtener la clave de NewsAPI.
+    env_file:
+      - ./.env
+
     environment:
       DATABASE_URL: postgresql://centinela:secret@db/centinela
+      REDIS_HOST: redis # Añadimos esto por si acaso el worker lo necesita
     depends_on:
       db:
         condition: service_healthy
@@ -57,11 +63,8 @@ services:
     build: ./services/frontend
     ports:
       - "3000:80"
-    # El frontend depende de que la API esté disponible
     depends_on:
       - api
 
 volumes:
   pgdata:
-
-# --- ARREGLO: El bloque 'scraper' duplicado se ha eliminado de aquí ---
