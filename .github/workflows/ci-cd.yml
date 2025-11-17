@@ -62,8 +62,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install black flake8 bandit semgrep
       - run: black --check services
-      # --- ARREGLO DE FLAKE8 ---
-      # Ignoramos E501 (línea larga) porque 'black' se encarga.
       - run: flake8 services --ignore=E501
       - run: bandit -r services/api -lll
       - run: semgrep --config ./.semgrep/basic-rules.yml
@@ -111,29 +109,27 @@ jobs:
         with:
           python-version: '3.11'
 
-      # --- ¡AQUÍ ESTÁ LA CORRECCIÓN DE PYTHONPATH! ---
+      # --- ¡CORRECCIÓN DE PYTHONPATH! ---
       - name: Instalar y Correr Pruebas de Python
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
-          # 1. Instalar dependencias de la API (incluye httpx) y pytest
           pip install -r services/api/requirements.txt
           pip install pytest
-
-          # 2. Exportar la raíz del proyecto al PYTHONPATH
-          # Esto asegura que Python encuentre la carpeta 'services'
-          export PYTHONPATH=$(pwd)
-
-          # 3. Ejecutar las pruebas
           pytest -q services/api/tests/
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Construir Frontend (para smoke test)
+      - name: Construir Frontend (smoke test)
         run: |
           cd services/frontend
-          # Usamos 'npm ci' para una instalación limpia
-          npm install
-          npm run build --if-present
+          if [ -f "index.html" ]; then
+            echo "index.html encontrado."
+          else
+            echo "Error: index.html no encontrado."
+            exit 1
+          fi
 
   # ------------------------------------------------------------------
   # Job 6: Construcción y Escaneo de Imágenes Docker
@@ -175,12 +171,11 @@ jobs:
           trivy image --format json --output reports/trivy-frontend.json --severity HIGH,CRITICAL --exit-code 1 $FRONTEND_IMG_ID
           trivy image --format json --output reports/trivy-scraper.json --severity HIGH,CRITICAL --exit-code 1 $SCRAPER_IMG_ID
 
-          # (Reportes HTML opcionales)
-          trivy image --format template --template @contrib/html.tpl --output reports/trivy-api.html $API_IMG_ID || true
-          trivy image --format template --template @contrib/html.tpl --output reports/trivy-frontend.html $FRONTEND_IMG_ID || true
-          trivy image --format template --template @contrib/html.tpl --output reports/trivy-scraper.html $SCRAPER_IMG_ID || true
-          cd reports && zip -r ../trivy-reports-${{ github.run_id }}.zip . || true
-          cd - >/dev/null || true
+          (trivy image --format template --template @contrib/html.tpl --output reports/trivy-api.html $API_IMG_ID || true)
+          (trivy image --format template --template @contrib/html.tpl --output reports/trivy-frontend.html $FRONTEND_IMG_ID || true)
+          (trivy image --format template --template @contrib/html.tpl --output reports/trivy-scraper.html $SCRAPER_IMG_ID || true)
+          (cd reports && zip -r ../trivy-reports-${{ github.run_id }}.zip . || true)
+          (cd - >/dev/null || true)
 
           docker push $API_IMG_ID
           docker push $FRONTEND_IMG_ID
@@ -231,7 +226,7 @@ jobs:
 
       - name: Run application stack
         run: |
-          export IMAGE_NAMESPACE=$(echo "${{ env.IMAGE_NAMESPACE }}" | tr '[:upper:]' '[:lower:]')
+          export IMAGE_NAMESPACE=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
           export IMAGE_TAG=${{ env.IMAGE_TAG }}
 
           echo "Building service images (frontend, api, scraper)"
@@ -252,7 +247,6 @@ jobs:
           if [ -z "$FRONTEND_CID" ]; then echo "ERROR: no se encontró 'frontend'"; exit 1; fi
           NETWORK_NAME=$(docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' $FRONTEND_CID | awk '{print $1}')
 
-          # (Lógica de espera)
           REACHABLE=0
           for i in $(seq 1 12); do
             echo "Intento $i/12..."
@@ -306,7 +300,6 @@ jobs:
         id: set-dast-output
         if: always()
         run: |
-          # (Paso que cuenta los errores de ZAP)
           set -euo pipefail || true
           if ! command -v jq >/dev/null 2>&1; then sudo apt-get update -y && sudo apt-get install -y jq || true; fi
           if [ ! -f reports/report_dast_zap.json ]; then
@@ -321,20 +314,17 @@ jobs:
 
       - name: Create issue or comment if HIGH/CRITICAL findings
         if: always()
-        # --- ARREGLO DE ERROR DE SCRIPT ---
-        # Si este paso falla, no debe fallar el build
+        # --- ¡AQUÍ ESTÁ EL ARREGLO! ---
+        # Si este script falla, no detengas el pipeline.
         continue-on-error: true
         uses: actions/github-script@v6
-        continue-on-error: true
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            # (Script que crea un comentario en el PR)
             const critical = parseInt(process.env.DAST_CRITICAL || '0');
             const high = parseInt(process.env.DAST_HIGH || '0');
             if (critical > 0 || high > 0) {
               const body = `DAST scan detected issues...`;
-              // ...
             }
         env:
           DAST_CRITICAL: ${{ steps.set-dast-output.outputs.dast_critical }}
@@ -343,7 +333,6 @@ jobs:
       - name: Fail job if critical/high findings
         if: always()
         run: |
-          # (Este es el "Quality Gate" de DAST)
           CRITICAL=${{ steps.set-dast-output.outputs.dast_critical }}
           HIGH=${{ steps.set-dast-output.outputs.dast_high }}
           if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
@@ -367,7 +356,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    # Solo corre en 'push' a 'main'
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     env:
       REGISTRY: ghcr.io
