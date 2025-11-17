@@ -167,7 +167,7 @@ def main():
                     if articles:
                         save_articles_to_db(articles)
                     else:
-                        print(f"❌ Trabajo completado: No se encontraron artículos.")
+                        print("❌ Trabajo completado: No se encontraron artículos.")
 
         except redis.exceptions.ConnectionError as e:
             print(f"Error de conexión con Redis: {e}. Reintentando...")
