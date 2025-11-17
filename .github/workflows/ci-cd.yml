@@ -313,8 +313,6 @@ jobs:
 
       - name: Create issue or comment if HIGH/CRITICAL findings
         if: always()
-        # --- ¡AQUÍ ESTÁ EL ARREGLO! ---
-        # Me aseguré de que 'continue-on-error' esté SÓLO UNA VEZ.
         continue-on-error: true
         uses: actions/github-script@v6
         with:
