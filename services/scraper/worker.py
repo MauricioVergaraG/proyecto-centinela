@@ -26,8 +26,7 @@ def connect_to_db():
             print("✅ Worker conectado a PostgreSQL.")
         except psycopg2.OperationalError as e:
             print(
-                f"Error conectando a PostgreSQL: {e}. "
-                "Reintentando en 5 segundos..."
+                f"Error conectando a PostgreSQL: {e}. " "Reintentando en 5 segundos..."
             )
             time.sleep(5)
 
@@ -57,9 +56,7 @@ def setup_database():
 def get_hacker_news_comments(keyword, limit=25):
     """Obtiene comentarios de Hacker News con una palabra clave."""
     comments_data = []
-    api_url = (
-        f"http://hn.algolia.com/api/v1/search?query={keyword}&tags=comment"
-    )
+    api_url = f"http://hn.algolia.com/api/v1/search?query={keyword}&tags=comment"
 
     try:
         print(f"Contactando API de Hacker News para '{keyword}'...")
@@ -96,10 +93,7 @@ def save_comments_to_db(comments):
     if not comments:
         return
 
-    values = [
-        (c["author"], c["body"], c["score"], c["permalink"])
-        for c in comments
-    ]
+    values = [(c["author"], c["body"], c["score"], c["permalink"]) for c in comments]
 
     try:
         with db_conn.cursor() as cur:
@@ -116,8 +110,7 @@ def save_comments_to_db(comments):
                 values,
             )
             print(
-                f"✅ Se guardaron/actualizaron {len(values)} "
-                "comentarios en la BD."
+                f"✅ Se guardaron/actualizaron {len(values)} " "comentarios en la BD."
             )
 
     except psycopg2.Error as e:
@@ -152,16 +145,13 @@ def main():
                         f"para '{keyword}'..."
                     )
 
-                    comments = get_hacker_news_comments(
-                        keyword, limit=50
-                    )
+                    comments = get_hacker_news_comments(keyword, limit=50)
 
                     if comments:
                         save_comments_to_db(comments)
                     else:
                         print(
-                            "❌ Trabajo completado: "
-                            "No se encontraron comentarios."
+                            "❌ Trabajo completado: " "No se encontraron comentarios."
                         )
 
         except redis.exceptions.ConnectionError as e:
