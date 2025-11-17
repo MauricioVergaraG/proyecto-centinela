@@ -35,7 +35,7 @@ Este flujo es asíncrono y utiliza una arquitectura de microservicios para separ
   - Está permanentemente "bloqueado", esperando un trabajo en scrape_queue.
   - Tan pronto como la API (Paso 2) añade un trabajo, el Worker lo "despierta".
   - Toma el trabajo (ej. {"keyword": "devops"}).
-  - Realiza la tarea pesada: llama a la API de Hacker News (<http://hn.algolia.com/>...).
+  - Realiza la tarea pesada: llama a la API de Hacker News (<http://hn.algolia.com/> ...).
   - Recoge y procesa los comentarios.
   - **(Actualmente)** Imprime los resultados en los logs de Docker.
   - **(Próximo Paso)** Guardará estos resultados en la base de datos **PostgreSQL**.
