@@ -111,19 +111,16 @@ jobs:
         with:
           python-version: '3.11'
 
-      # --- ¡AQUÍ ESTÁ LA CORRECCIÓN DE PYTHONPATH! ---
       - name: Instalar y Correr Pruebas de Python
         run: |
-          # 1. Instalar dependencias de la API (incluye httpx) y pytest
           pip install -r services/api/requirements.txt
           pip install pytest
-
-          # 2. Exportar la raíz del proyecto al PYTHONPATH
-          # Esto asegura que Python encuentre la carpeta 'services'
-          export PYTHONPATH=$(pwd)
-
-          # 3. Ejecutar las pruebas
-          pytest -q services/api/tests/
+          
+          # --- ¡ARREGLO! ---
+          # Ya no necesitamos 'export PYTHONPATH'.
+          # Simplemente corremos 'pytest' y dejamos que descubra los tests.
+          # (Correr 'python -m pytest' es más robusto para imports)
+          python -m pytest -q services/api/tests/
 
       - uses: actions/setup-node@v4
         with:
