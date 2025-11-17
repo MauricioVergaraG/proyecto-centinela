@@ -4,10 +4,10 @@ from pydantic import BaseModel
 import redis
 import json
 import os
-import psycopg2  # ¡NUEVO IMPORT!
-from psycopg2.extras import RealDictCursor  # ¡NUEVO! Para resultados como diccionarios
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Optional  # ¡NUEVO!
+from typing import List, Optional
 
 # --- 1. Configuración ---
 app = FastAPI(title="Centinela API", version="0.1.0")
@@ -26,7 +26,7 @@ app.add_middleware(
 
 # --- Conexiones ---
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
-DATABASE_URL = os.getenv("DATABASE_URL")  # ¡NUEVO!
+DATABASE_URL = os.getenv("DATABASE_URL")
 r = None
 db_conn = None
 
@@ -38,9 +38,7 @@ except redis.exceptions.ConnectionError as e:
     print(f"FATAL: No se pudo conectar a Redis en {REDIS_HOST}. {e}")
 
 
-# --- ¡NUEVO! Función para conectar a la BD ---
 def get_db_connection():
-    """Se conecta a la BD. Lanza excepción si falla."""
     try:
         conn = psycopg2.connect(DATABASE_URL)
         return conn
@@ -56,16 +54,18 @@ class Health(BaseModel):
     status: str
 
 
+# --- ¡CAMBIO AQUÍ! ---
+# Ahora aceptamos una palabra clave y un idioma
 class ScrapeRequest(BaseModel):
     keyword: str
+    language: Optional[str] = "es"  # 'es' (español) por defecto
 
 
-# ¡NUEVO! Modelo para el comentario (Respuesta)
 class Comment(BaseModel):
     id: int
-    author: Optional[str] = None  # <- Añadido por si acaso
+    author: Optional[str] = "Desconocido"
     body: str
-    score: Optional[int] = 0  # <--- ¡ARREGLADO!
+    score: Optional[int] = 0
     permalink: str
 
 
@@ -79,8 +79,6 @@ def read_root():
 
 @app.get("/health", response_model=Health, tags=["Monitoring"])
 async def health():
-    # ... (código de health check sin cambios) ...
-    # ... (Revisión de Redis...)
     redis_status = "ok"
     if r is None:
         redis_status = "disconnected"
@@ -90,7 +88,6 @@ async def health():
         except redis.exceptions.ConnectionError:
             redis_status = "disconnected"
 
-    # ¡NUEVO! Revisión de la BD
     db_status = "ok"
     try:
         conn = get_db_connection()
@@ -114,32 +111,32 @@ async def version():
 
 @app.post("/scrape", tags=["Scraping"])
 async def create_scraping_job(request: ScrapeRequest):
-    # ... (código de /scrape sin cambios) ...
     if r is None:
         raise HTTPException(status_code=503, detail="Servicio de Redis no disponible.")
     try:
-        job_data = {"keyword": request.keyword}
+        # --- ¡CAMBIO AQUÍ! ---
+        # Enviamos el trabajo con el idioma
+        job_data = {"keyword": request.keyword, "language": request.language}
+
         r.rpush("scrape_queue", json.dumps(job_data))
-        print(f"Nuevo trabajo enviado a 'scrape_queue': '{request.keyword}'")
+        print(
+            f"Nuevo trabajo enviado a 'scrape_queue': '{request.keyword}' en '{request.language}'"
+        )
+
         return {
             "status": "success",
-            "message": "Trabajo de scraping (Hacker News) iniciado.",
+            "message": f"Trabajo de scraping (NewsAPI) para '{request.keyword}' iniciado.",
             "job_details": job_data,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error interno: {e}")
 
 
-# --- ¡NUEVO ENDPOINT! ---
 @app.get("/results", response_model=List[Comment], tags=["Scraping"])
 async def get_results(limit: int = 50):
-    """
-    Obtiene los últimos comentarios guardados de la base de datos.
-    """
     conn = None
     try:
         conn = get_db_connection()
-        # RealDictCursor devuelve cada fila como un diccionario (¡perfecto para JSON!)
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """

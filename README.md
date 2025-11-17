@@ -1,101 +1,84 @@
-# Proyecto Centinela 🛡️
+**Proyecto Centinela 🛡️**
 
-![Pipeline de CI/CD - DevSecOps](https://github.com/MauricioVergaraG/proyecto-centinela/actions/workflows/ci-cd.yml/badge.svg)
+**Autor:** Mauricio Vergara
 
-Este repositorio contiene el trabajo práctico "Proyecto Centinela", un ejercicio de implementación de un **pipeline DevSecOps de ciclo completo** para una plataforma contenerizada de análisis de desinformación (OSINT).
+Este repositorio es la implementación de un **pipeline DevSecOps de ciclo completo** para una plataforma contenerizada de análisis de desinformación (OSINT), como parte de un trabajo práctico universitario.
 
-El objetivo principal **no es** la aplicación en sí, sino la **construcción, automatización y aseguramiento de todo el ciclo de vida de la aplicación (CI/CD/CS)**, utilizando exclusivamente herramientas de código abierto (FOSS) y un enfoque 100% contenerizado.
+El objetivo principal **no es** la aplicación en sí, sino la **construcción, automatización y aseguramiento de todo el ciclo de vida de la aplicación (CI/CD/CS)**, integrando la seguridad en cada fase (Shift-Left Security) con herramientas FOSS.
 
----
+**1\. ⚙️ Arquitectura de la Aplicación**
 
-## 1. Contexto de la Aplicación "Centinela"
+La aplicación es una plataforma de microservicios asíncrona, diseñada para ser escalable y resiliente.
 
-La aplicación es una plataforma de microservicios diseñada para:
-* Combatir noticias falsas mediante web scraping y contrastación de fuentes.
-* Evaluar el impacto de campañas de información/desinformación.
-* Gestionar la publicación de contenido verificado.
+- **Frontend (React):** Interfaz de usuario (localhost:3000).
+- **Backend (FastAPI):** API que gestiona las peticiones (localhost:8000).
+- **Worker (Python):** Un servicio scraper que consume de una cola y ejecuta el trabajo pesado (llamar a APIs externas y guardar en la BD).
+- **Cola de Mensajes (Redis):** Gestiona la comunicación asíncrona entre la API y el Worker.
+- **Base de Datos (PostgreSQL):** Almacena los resultados del scraping.
+- **Contenerización:** Toda la aplicación se ejecuta con Docker y se orquesta localmente con Docker Compose.
 
-### ✨ Funcionalidades Planeadas
-* **API Principal:** Un gateway en FastAPI (Python) para gestionar todas las peticiones.
-* **Frontend:** Una SPA (Single Page Application) en React para visualizar los datos.
-* **Servicio de Scraping:** **[PENDIENTE: Aquí se integrará la nueva app de scraping (appscraping.md)]**
-* **Análisis de Sentimiento:** Un worker básico con NLTK.
-* **Publicación Social:** Conexión con APIs de redes sociales.
+**2\. 🚀 El Pipeline DevSecOps (El Resultado del Proyecto)**
 
----
+Este es el núcleo del trabajo, implementado en .github/workflows/ci-cd.yml. El pipeline automatiza e integra la seguridad en cada fase del ciclo de vida del software.
 
-## 2. ⚙️ Arquitectura de Microservicios
+**Fase 1: Plan**
 
-La plataforma está diseñada para ser escalable y resiliente, usando los siguientes componentes:
+- **Modelado de Amenazas:** Realizado con **OWASP Threat Dragon** para identificar amenazas (STRIDE) en el flujo de datos.
 
-* **Frontend:** `React` (servido con Nginx)
-* **Backend (API):** `FastAPI` (Python)
-* **Workers (Scraper, Análisis):** `Python`
-* **Base de Datos:** `PostgreSQL`
-* **Broker de Mensajes:** `Redis`
-* **Contenerización:** `Docker` y `Docker Compose`
+**Fase 2: Code (Seguridad Estática)**
 
+_Se analiza el código fuente en cada "push" y "pull request"._
 
----
+- **Pre-commit Hooks:** Se usa pre-commit para ejecutar "guardias locales":
+  - gitleaks: Detecta secretos y claves API _antes_ de que lleguen al repositorio.
+  - black: Asegura un formato de código Python consistente.
+  - fix-end-of-files / trailing-whitespace: Mantienen la limpieza del código.
+- **SAST (Análisis Estático):**
+  - flake8: Analiza el código Python en busca de errores lógicos y de estilo.
+  - bandit: Escáner SAST que busca patrones de vulnerabilidades comunes en Python.
+  - semgrep: Escáner SAST basado en reglas para patrones de código complejos.
+- **SCA (Análisis de Dependencias):**
+  - trivy fs: Escanea requirements.txt y otros archivos de dependencias en busca de librerías con CVEs (Vulnerabilidades) conocidas.
+- **IaC Scan (Escaneo de Infraestructura):**
+  - checkov: Escanea archivos de Terraform (/terraform) en busca de malas configuraciones de seguridad en la infraestructura.
 
-## 3. 🚀 El Corazón del Proyecto: El Pipeline DevSecOps
+**Fase 3: Build (Seguridad de Imágenes)**
 
-Este es el núcleo del trabajo. El pipeline está construido con **GitHub Actions** (`.github/workflows/ci-cd.yml`) e integra la seguridad en cada fase.
+_Se construyen y aseguran los artefactos de Docker._
 
-### Fase 2: Code (SAST, SCA y Pre-commit)
-*Se analiza el código fuente antes y durante la integración.*
-* **Gitleaks / TruffleHog:** Detecta secretos y claves API hardcodeadas antes del commit (vía `pre-commit`).
-* **Bandit:** Escáner SAST específico para vulnerabilidades en Python.
-* **Semgrep:** SAST basado en reglas para encontrar patrones de código inseguros.
-* **Trivy (Filesystem):** Escáner SCA que analiza `requirements.txt` y `package.json` en busca de dependencias con CVEs.
+- **Docker Build:** Se construyen las imágenes de los 3 microservicios (api, frontend, scraper).
+- **Escaneo de Imágenes:**
+  - trivy image: Escanea las imágenes Docker finales. El pipeline **falla (🔴)** si se encuentra una vulnerabilidad de severidad HIGH o CRITICAL, previniendo el uso de imágenes inseguras.
+- **Registro:** Las imágenes seguras se publican en **GitHub Container Registry (GHCR)**.
 
-### Fase 3: Build (Escaneo de Imágenes)
-*Se construye y asegura la imagen Docker.*
-* **Docker Build:** Las imágenes de cada microservicio son construidas y etiquetadas.
-* **Trivy (Image Scan):** Escanea las imágenes Docker finales en busca de CVEs en las capas del sistema operativo y librerías.
-* **GitHub Container Registry (GHCR):** Almacena las imágenes seguras.
+**Fase 4: Test (Seguridad Dinámica)**
 
-### Fase 4: Test (DAST y Quality Gates)
-*Se prueba la aplicación en vivo en un entorno temporal.*
-* **Pytest:** Ejecución de pruebas unitarias del backend.
-* **OWASP ZAP (DAST):** Levanta la aplicación con `docker-compose` y lanza un escaneo dinámico (DAST) contra el frontend para encontrar vulnerabilidades web (ej. cabeceras faltantes, XSS).
-* **Quality Gate:** El pipeline **falla automáticamente** si ZAP detecta vulnerabilidades críticas o altas, previniendo el despliegue.
+_Se prueba la aplicación completa en un entorno en vivo (temporal)._
 
-### Fase 5: Release & Deploy (IaC y Despliegue)
-*Se define la infraestructura y se despliega la aplicación.*
-* **Checkov (IaC Scan):** Escanea los archivos de `Terraform` en busca de configuraciones inseguras en la infraestructura.
-* **Publicación (Release):** Si todos los chequeos pasan en la rama `main`, se publican las imágenes con la etiqueta `:latest`.
-* **Despliegue (CD):** (Actualmente en pausa) El job `deploy-to-production` se conecta a un VPS vía SSH, inicia sesión en GHCR y actualiza la aplicación con `docker compose pull && docker compose up -d`.
+- **Unit & Smoke Tests:** Se ejecutan pytest (para la API) y un "smoke test" (para el frontend) para asegurar que la lógica de la app funciona.
+- **DAST (Análisis Dinámico):**
+  - Se levanta la pila completa (docker-compose up) dentro del pipeline.
+  - **OWASP ZAP (Zed Attack Proxy)** se lanza contra el frontend (<http://frontend:80>) para "hackear" la aplicación y encontrar vulnerabilidades en tiempo de ejecución (ej. cabeceras de seguridad faltantes, XSS, etc.).
+- **Quality Gates:** El pipeline tiene "porteros de calidad" que detienen el proceso si:
+  - pytest falla.
+  - Trivy (SCA o Imagen) encuentra un CVE crítico.
+  - DAST (ZAP) encuentra una vulnerabilidad crítica.
 
----
+**Fase 5 & 6: Deploy & Monitor (Despliegue y Monitoreo)**
 
-## 4. 🛠️ Requisitos Previos (Locales)
+- **Despliegue (CD):** (Pendiente) El job deploy-to-production (que solo se ejecuta en main) está configurado para conectarse a un VPS vía SSH y actualizar la aplicación usando docker compose pull.
+- **Monitoreo (Plan):** La Fase 6 (Opcional) implicaría instalar Falco (para seguridad en runtime) y el stack PLG (Promtail, Loki, Grafana) para la observabilidad de logs.
 
-* [Git](https://git-scm.com/)
-* [Docker & Docker Compose (v2+)](https://www.docker.com/products/docker-desktop/)
-* [Node.js v18+](https://nodejs.org/) (Opcional, para desarrollo de frontend)
-* [Python 3.11+](https://www.python.org/) (Opcional, para desarrollo de backend)
-* **Opcional (Recomendado):** `pip install pre-commit && pre-commit install` para activar los ganchos de Gitleaks.
+**3\. 💻 Cómo Levantar Localmente (Desarrollo)**
 
----
-
-## 5. 💻 Cómo Levantar Localmente (Desarrollo)
-
-1.  **Clonar el repositorio:**
-    ```bash
-    git clone [https://github.com/MauricioVergaraG/proyecto-centinela.git](https://github.com/MauricioVergaraG/proyecto-centinela.git)
-    cd proyecto-centinela
-    ```
-
-2.  **(Opcional) Crear archivo de entorno:**
-    *Este proyecto usa configuraciones por defecto, pero si fuera necesario, se crearía un `.env`.*
-
-3.  **Levantar todos los servicios:**
-    *Este comando construirá todas las imágenes y levantará la pila completa.*
-    ```bash
-    docker-compose up --build
-    ```
-
-4.  **Acceder a los servicios:**
-    * **Frontend (React):** `http://localhost:8080`
-    * **Backend (API Docs):** `http://localhost:8000/docs`
+- **Requisitos:**
+  - Git
+  - Docker & Docker Compose (v2+)
+- **Clonar el repositorio:**
+- git clone \[<https://github.com/MauricioVergaraG/proyecto-centinela.git\>](<https://github.com/MauricioVergaraG/proyecto-centinela.git>)
+- cd proyecto-centinela
+- **Levantar todos los servicios:** _Este comando construirá todas las imágenes y levantará la pila completa._
+- docker-compose up --build
+- **Acceder a los servicios:**
+  - **Frontend (App):** <http://localhost:3000>
+  - **Backend (API Docs):** <http://localhost:8000/docs>
