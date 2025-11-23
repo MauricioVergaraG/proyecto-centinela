@@ -42,7 +42,8 @@ services:
     image: ghcr.io/${IMAGE_NAMESPACE:-local}/scraper:${IMAGE_TAG:-latest}
     build: ./services/scraper
     restart: unless-stopped
-
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://centinela:secret@db/centinela
       REDIS_HOST: redis # Añadimos esto por si acaso el worker lo necesita

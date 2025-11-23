@@ -1,77 +1,95 @@
-# ¿Cómo Funciona la App "Centinela"?
+# 🛡️ CENTINELA - Sistema de Análisis Forense Digital
 
-Este documento explica el flujo de trabajo de la aplicación desde que haces clic en "Buscar" hasta que ves los resultados en pantalla.  
-El flujo es **asíncrono**, lo que significa que la búsqueda se realiza en **segundo plano** (background) para que la interfaz de usuario sea rápida.
+> **App del Grupo 3 para DevSecOps** | Especialización en Ciberseguridad | UNIMINUTO
 
----
+![Centinela Dashboard](https://img.shields.io/badge/Estado-Activo-success) ![Docker](https://img.shields.io/badge/Docker-Containerized-blue) ![Stack](https://img.shields.io/badge/Microservicios-FullStack-orange)
 
-## 1. El Frontend (React)
-
-**Qué es:** La interfaz de usuario que ves en [http://localhost:3000](http://localhost:3000).  
-
-**Cómo lo hace:** Construida con **React** y **Tailwind CSS** (cargados desde CDN).  
-
-**De dónde lo hace:** Archivo `index.html` estático servido por un contenedor **Nginx** (`services/frontend`).  
-
-**Flujo:**
-1. Escribes una palabra clave (ej. `"IA"`) y un idioma (ej. `"es"`).  
-2. La app React realiza una petición **POST** a la API (`/scrape`).  
-3. Al mismo tiempo, la aplicación empieza a **sondear** (`polling`) el endpoint `/results` cada 3 segundos, pidiendo los artículos más nuevos.
+**Centinela** es una plataforma de auditoría y análisis forense diseñada para detectar patrones de desinformación (Fake News) en sitios web. Utilizando una arquitectura de microservicios, el sistema realiza *web scraping* en tiempo real, analiza heurísticas de contenido y genera reportes de evidencia digital.
 
 ---
 
-## 2. El Backend (FastAPI)
+## 🚀 Características Principales
 
-**Qué es:** El "cerebro" y administrador de la aplicación, ubicado en [http://localhost:8000](http://localhost:8000).  
-
-**Cómo lo hace:** Escucha peticiones en dos endpoints principales:
-
-- **POST /scrape:**  
-  - No hace el scraping directamente.  
-  - Recibe la `keyword` y `language` del Frontend y las pone en una **cola de trabajos**.  
-  - Responde `"¡Éxito!"` inmediatamente.
-
-- **GET /results:**  
-  - Llamado por el Frontend cada 3 segundos.  
-  - Consulta la base de datos y devuelve los **50 artículos más recientes** (`ORDER BY created_at DESC`).
-
-**De dónde lo hace:** Aplicación **FastAPI (Python)** en el contenedor `api` (`services/api`).
+* **🔍 Análisis Forense de URLs:** Examina sitios web en busca de patrones sospechosos (títulos alarmistas, exceso de mayúsculas, lenguaje polarizante).
+* **📊 Dashboard en Tiempo Real:** Visualización estadística de amenazas detectadas vs. sitios seguros.
+* **📄 Generación de Evidencia:** Exportación de reportes forenses en formato **PDF** con hash del análisis y metadatos.
+* **🚥 Sistema de Scoring:** Algoritmo de puntuación de riesgo (0-100%) con clasificación visual (Confiable, Dudoso, Alto Riesgo).
+* **💾 Persistencia de Datos:** Historial global de análisis almacenado en base de datos relacional.
+* **⚡ Modo Simulacro:** Herramienta integrada para demos y pruebas de estrés con inyección de amenazas simuladas.
 
 ---
 
-## 3. La Cola de Mensajes (Redis)
+## 🏗️ Arquitectura del Sistema
 
-**Qué es:** Una "sala de espera" súper rápida para los trabajos.  
+El proyecto implementa una arquitectura de **Microservicios Desacoplados** orquestados con Docker Compose:
 
-**Cómo lo hace:**  
-- Mantiene una lista llamada `scrape_queue`.  
-- La API (Paso 2) **añade trabajos** (ej. `{"keyword": "IA", "language": "es"}`) a esta lista.
-
-**De dónde lo hace:** Contenedor oficial **Redis** (`redis:7`).
-
----
-
-## 4. El Worker (Scraper de Python)
-
-**Qué es:** El "trabajador" (o "Chef") que hace el trabajo pesado.  
-
-**Cómo lo hace:**  
-1. Se inicia y se queda escuchando permanentemente la cola de Redis (`scrape_queue`).  
-2. Cuando ve un nuevo trabajo, lo toma.  
-3. Llama a la API externa **NewsAPI.org** para buscar artículos reales que coincidan con la palabra clave y el idioma.  
-4. Se conecta a la base de datos **PostgreSQL**.  
-5. Guarda (`INSERT`) los resultados en la tabla `comments`.  
-   - Si el artículo ya existe (`ON CONFLICT`), actualiza su fecha (`created_at = CURRENT_TIMESTAMP`) para que aparezca primero en la lista.
-
-**De dónde lo hace:** Script de **Python** (usando `requests` y `psycopg2`) en el contenedor `scraper` (`services/scraper`).
+1.  **Frontend (React + Tailwind):** Interfaz de usuario para gestión de casos y visualización.
+2.  **Backend (FastAPI):** API Gateway que gestiona solicitudes y validaciones.
+3.  **Broker (Redis):** Cola de mensajería para manejo asíncrono de tareas de scraping.
+4.  **Worker (Python Scraper):** Motor de análisis que navega, extrae y evalúa el contenido.
+5.  **Database (PostgreSQL):** Persistencia de resultados históricos y evidencia.
 
 ---
 
-## 5. La Base de Datos (PostgreSQL)
+## ⚙️ ¿Cómo funciona paso a paso?
 
-**Qué es:** La "memoria" permanente de la aplicación.  
+El flujo de un análisis forense dentro de Centinela sigue estos pasos rigurosos:
 
-**Cómo lo hace:**  
-- Almacena la tabla `comments` donde el Worker (Paso 4) guarda los resultados y la API (Paso 2) los lee.
+1.  **Ingesta:** El analista ingresa una URL sospechosa en el Dashboard.
+2.  **Encolado:** La API recibe la URL y crea un "Trabajo de Análisis" (Job) en la cola `scrape_queue` de Redis.
+3.  **Procesamiento (Scraping):**
+    * El **Worker** detecta el nuevo trabajo.
+    * Realiza una petición HTTP segura al sitio objetivo.
+    * Extrae el DOM (HTML) y limpia el contenido para obtener solo texto legible.
+4.  **Análisis Heurístico:** El algoritmo interno evalúa:
+    * *Palabras Clave de Pánico:* "URGENTE", "VIRAL", "MUERTE", etc.
+    * *Formato:* Uso excesivo de mayúsculas (Gritar digitalmente).
+    * *Longitud:* Textos demasiado cortos sin sustento.
+5.  **Veredicto y Persistencia:** Se calcula un **Score (0-100)** y se guarda el resultado junto con la evidencia (texto extraído) en PostgreSQL.
+6.  **Reporte:** El Frontend consulta la base de datos y actualiza la interfaz, mostrando la tarjeta de riesgo y permitiendo descargar el PDF.
 
-**De dónde lo hace:** Contenedor oficial **PostgreSQL** (`postgres:15`).
+---
+
+## 🛠️ Instalación y Despliegue
+
+Este proyecto está 100% dockerizado para facilitar su despliegue en cualquier entorno.
+
+### Prerrequisitos
+* Docker y Docker Compose instalados.
+
+### Pasos para ejecutar
+
+1.  **Construir y levantar los servicios:**
+    ```bash
+    docker-compose up -d --build
+    ```
+
+2.  **Acceder a la Aplicación:**
+    * Abra su navegador en: `http://localhost:3000`
+
+### Comandos Útiles
+
+* **Ver logs del sistema:** `docker-compose logs -f`
+* **Detener el sistema:** `docker-compose down`
+* **Limpieza total (Borrar BD):** `docker-compose down -v`
+
+---
+
+## 🧪 Pruebas y Simulación
+
+Para validar el funcionamiento del sistema de alertas sin depender de noticias externas cambiantes, Centinela incluye modos de prueba rápida:
+
+* **Botón "🚨 Cargar Simulacro":** Envía una URL interna de prueba que fuerza al sistema a detectar un positivo de Fake News (Score 95%), mostrando las alertas rojas y el desglose de evidencias.
+* **Botón "✅ Cargar BBC":** Envía una URL confiable para validar el caso negativo (Score bajo).
+
+---
+
+## 👥 Créditos - Grupo 3
+
+Proyecto desarrollado como parte de la **Especialización en Ciberseguridad (DevSecOps)** de la Corporación Universitaria Minuto de Dios (UNIMINUTO).
+
+* **Desarrollo y Arquitectura:** Mauricio Vergara
+* **Stack:** Python, React, Docker, Postgres.
+
+---
+*Centinela v3.0 - 2025*

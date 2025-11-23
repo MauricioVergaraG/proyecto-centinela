@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 
 # --- 1. Configuración ---
-app = FastAPI(title="Centinela API", version="0.1.0")
+app = FastAPI(title="Centinela API", version="0.2.0") # Subimos versión
 
 origins = [
     "http://localhost:3000",
@@ -54,19 +54,19 @@ class Health(BaseModel):
     status: str
 
 
-# --- ¡CAMBIO AQUÍ! ---
-# Ahora aceptamos una palabra clave y un idioma
-class ScrapeRequest(BaseModel):
-    keyword: str
-    language: Optional[str] = "es"  # 'es' (español) por defecto
+# --- ¡CAMBIO CRÍTICO! ---
+# Cambiamos la solicitud: Ya no pedimos keyword, pedimos URL
+class AnalyzeRequest(BaseModel):
+    url: str 
 
 
-class Comment(BaseModel):
+# Mantenemos el modelo de respuesta igual para no romper el frontend por ahora
+class AnalysisResult(BaseModel):
     id: int
-    author: Optional[str] = "Desconocido"
-    body: str
-    score: Optional[int] = 0
-    permalink: str
+    author: Optional[str] = "Desconocido" # Aquí irá el dominio (ej: cnn.com)
+    body: str # Aquí irá el resumen del texto
+    score: Optional[int] = 0 # Aquí irá la probabilidad de Fake (0-100)
+    permalink: str # La URL analizada
 
 
 # --- 3. Endpoints de la API ---
@@ -74,7 +74,7 @@ class Comment(BaseModel):
 
 @app.get("/", include_in_schema=False)
 def read_root():
-    return {"Proyecto": "Centinela API"}
+    return {"Proyecto": "Centinela API - Detector de Fake News"}
 
 
 @app.get("/health", response_model=Health, tags=["Monitoring"])
@@ -106,38 +106,43 @@ async def health():
 
 @app.get("/version", tags=["Monitoring"])
 async def version():
-    return {"version": "0.1.0", "author": "Mauricio Vergara"}
+    return {"version": "0.2.0", "author": "Mauricio Vergara"}
 
 
-@app.post("/scrape", tags=["Scraping"])
-async def create_scraping_job(request: ScrapeRequest):
+# --- ¡NUEVO ENDPOINT DE ANÁLISIS! ---
+@app.post("/analyze", tags=["Analysis"])
+async def create_analysis_job(request: AnalyzeRequest):
     if r is None:
         raise HTTPException(status_code=503, detail="Servicio de Redis no disponible.")
+    
+    if not request.url.startswith("http"):
+        raise HTTPException(status_code=400, detail="La URL debe comenzar con http:// o https://")
+
     try:
-        # --- ¡CAMBIO AQUÍ! ---
-        # Enviamos el trabajo con el idioma
-        job_data = {"keyword": request.keyword, "language": request.language}
+        # Enviamos la URL a la cola de Redis
+        # El worker espera recibir: {"url": "..."}
+        job_data = {"url": request.url}
 
         r.rpush("scrape_queue", json.dumps(job_data))
-        print(
-            f"Nuevo trabajo enviado a 'scrape_queue': '{request.keyword}' en '{request.language}'"
-        )
+        print(f"Solicitud de análisis enviada para: '{request.url}'")
 
         return {
             "status": "success",
-            "message": f"Trabajo de scraping (NewsAPI) para '{request.keyword}' iniciado.",
-            "job_details": job_data,
+            "message": "URL enviada a análisis forense.",
+            "url": request.url
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error interno: {e}")
 
 
-@app.get("/results", response_model=List[Comment], tags=["Scraping"])
+# Mantenemos este endpoint para ver el historial de análisis
+@app.get("/results", response_model=List[AnalysisResult], tags=["Analysis"])
 async def get_results(limit: int = 50):
     conn = None
     try:
         conn = get_db_connection()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Recuperamos los últimos análisis
             cur.execute(
                 """
                 SELECT id, author, body, score, permalink
