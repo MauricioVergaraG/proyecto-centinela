@@ -239,20 +239,30 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ env.GHCR_TOKEN }}
 
+      # --- ¡NUEVO PASO! CREAR ARCHIVO .ENV TEMPORAL ---
+      - name: Create .env file
+        run: |
+          echo "POSTGRES_USER=postgres" >> .env
+          echo "POSTGRES_PASSWORD=postgres" >> .env
+          echo "POSTGRES_DB=centinela" >> .env
+          echo "DATABASE_URL=postgresql://postgres:postgres@db:5432/centinela" >> .env
+          echo "REDIS_HOST=redis" >> .env
+          echo "NEWS_API_KEY=dummy_key_for_ci" >> .env
+          # Agrega aquí cualquier otra variable que use tu docker-compose
+      # -----------------------------------------------
+
       - name: Run application stack (PULL images)
         run: |
           export IMAGE_NAMESPACE=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
           export IMAGE_TAG=${{ env.IMAGE_TAG }}
 
-          # MEJORA CRÍTICA: Pull de imágenes exactas en lugar de build local
           echo "Descargando imágenes verificadas: tag $IMAGE_TAG"
           
-          # Nota: Asegúrate de que tu docker-compose.yml use las variables ${IMAGE_NAMESPACE} etc.
-          # Si falla, haremos fallback al build, pero lo ideal es el pull.
+          # Intentamos pull, si falla hacemos build (fallback)
           docker compose -f docker-compose.yml pull || echo "Pull falló, intentando build local..." && docker compose -f docker-compose.yml build 
 
           docker compose -f docker-compose.yml up -d
-          sleep 30 # Esperar a que los servicios inicien
+          sleep 30
 
       - name: Run ZAP Baseline Scan
         run: |
