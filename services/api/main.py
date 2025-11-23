@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 
 # --- 1. Configuración ---
-app = FastAPI(title="Centinela API", version="0.2.0") # Subimos versión
+app = FastAPI(title="Centinela API", version="0.2.0")  # Subimos versión
 
 origins = [
     "http://localhost:3000",
@@ -57,16 +57,16 @@ class Health(BaseModel):
 # --- ¡CAMBIO CRÍTICO! ---
 # Cambiamos la solicitud: Ya no pedimos keyword, pedimos URL
 class AnalyzeRequest(BaseModel):
-    url: str 
+    url: str
 
 
 # Mantenemos el modelo de respuesta igual para no romper el frontend por ahora
 class AnalysisResult(BaseModel):
     id: int
-    author: Optional[str] = "Desconocido" # Aquí irá el dominio (ej: cnn.com)
-    body: str # Aquí irá el resumen del texto
-    score: Optional[int] = 0 # Aquí irá la probabilidad de Fake (0-100)
-    permalink: str # La URL analizada
+    author: Optional[str] = "Desconocido"  # Aquí irá el dominio (ej: cnn.com)
+    body: str  # Aquí irá el resumen del texto
+    score: Optional[int] = 0  # Aquí irá la probabilidad de Fake (0-100)
+    permalink: str  # La URL analizada
 
 
 # --- 3. Endpoints de la API ---
@@ -114,9 +114,11 @@ async def version():
 async def create_analysis_job(request: AnalyzeRequest):
     if r is None:
         raise HTTPException(status_code=503, detail="Servicio de Redis no disponible.")
-    
+
     if not request.url.startswith("http"):
-        raise HTTPException(status_code=400, detail="La URL debe comenzar con http:// o https://")
+        raise HTTPException(
+            status_code=400, detail="La URL debe comenzar con http:// o https://"
+        )
 
     try:
         # Enviamos la URL a la cola de Redis
@@ -129,7 +131,7 @@ async def create_analysis_job(request: AnalyzeRequest):
         return {
             "status": "success",
             "message": "URL enviada a análisis forense.",
-            "url": request.url
+            "url": request.url,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error interno: {e}")
