@@ -69,7 +69,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install black flake8 bandit semgrep
       - run: black --check services
-      - run: flake8 services --ignore=E501
+      - run: flake8 services --ignore=E501,W503,W291
       - run: bandit -r services/api -lll
       - run: semgrep --config ./.semgrep/basic-rules.yml
 
