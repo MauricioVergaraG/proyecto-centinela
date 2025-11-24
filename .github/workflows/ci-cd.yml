@@ -67,7 +67,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install black flake8 bandit semgrep
       - run: black --check services
-      # Se mantienen las ignorancias que agregamos para evitar errores de estilo
       - run: flake8 services --ignore=E501,W503,W291
       - run: bandit -r services/api -lll
       - run: semgrep --config ./.semgrep/basic-rules.yml
@@ -139,7 +138,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # LOGIN EN DOCKER HUB (Usando los secretos que creamos)
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -155,7 +153,6 @@ jobs:
 
       - name: Build, scan and push
         run: |
-          # Nombres de imagen para Docker Hub
           API_IMG="mauriciovergara/centinela-api:${{ github.run_id }}"
           FRONT_IMG="mauriciovergara/centinela-frontend:${{ github.run_id }}"
           SCRAPER_IMG="mauriciovergara/centinela-scraper:${{ github.run_id }}"
@@ -211,14 +208,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # Login necesario para descargar tus imágenes privadas/públicas
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # EL ARREGLO DEL .ENV QUE YA FUNCIONABA
       - name: Create .env file
         run: |
           echo "POSTGRES_USER=postgres" >> .env
@@ -228,30 +223,16 @@ jobs:
           echo "REDIS_HOST=redis" >> .env
           echo "NEWS_API_KEY=dummy_key_for_ci" >> .env
 
-      - name: Run application stack (PULL form Docker Hub)
+      - name: Run application stack (PULL from Docker Hub)
         run: |
-          # Exportamos variables para que docker-compose sepa qué bajar
           export API_IMAGE="mauriciovergara/centinela-api:${{ github.run_id }}"
           export FRONTEND_IMAGE="mauriciovergara/centinela-frontend:${{ github.run_id }}"
           export SCRAPER_IMAGE="mauriciovergara/centinela-scraper:${{ github.run_id }}"
 
-          # Nota: Docker Compose intentará usar las imágenes definidas. 
-          # Si tu docker-compose.yml usa nombres fijos, los sobreescribimos o usamos el build.
-          # Para asegurar que usa lo de Docker Hub, forzamos el nombre en las variables de entorno si tu compose lo soporta,
-          # o simplemente hacemos pull de las imágenes específicas y las retagueamos si es necesario.
-          
-          # Estrategia simple: Pull explícito
           docker pull $API_IMAGE
           docker pull $FRONTEND_IMAGE
           docker pull $SCRAPER_IMAGE
           
-          # Retaguear localmente para que el docker-compose original (que busca local o ghcr) las encuentre
-          # Asumiendo que tu docker-compose usa nombres genéricos o podemos forzar el build:
-          # Lo más seguro en este punto para no romper tu compose es levantar con build, pero usando cache.
-          # O mejor: Editar tu docker-compose al vuelo para usar las imágenes descargadas.
-          
-          # Para mantenerlo simple y funcional como antes, usaremos el build local que es rápido
-          # gracias a que las capas base ya están ahí, PERO con el .env arreglado.
           docker compose -f docker-compose.yml up -d --build
           sleep 30
 
@@ -285,9 +266,9 @@ jobs:
           set -euo pipefail || true
           if ! command -v jq >/dev/null 2>&1; then sudo apt-get update -y && sudo apt-get install -y jq || true; fi
           if [ ! -f reports/report_dast_zap.json ]; then
-               echo "dast_critical=0" >> $GITHUB_OUTPUT
-               echo "dast_high=0" >> $GITHUB_OUTPUT
-               exit 0
+             echo "dast_critical=0" >> $GITHUB_OUTPUT
+             echo "dast_high=0" >> $GITHUB_OUTPUT
+             exit 0
           fi
           critical=$(jq '[.site[]?.alerts[]? | select(.risk=="High" or .risk=="Critical")] | length' reports/report_dast_zap.json || echo 0)
           high=$(jq '[.site[]?.alerts[]? | select(.risk=="High")] | length' reports/report_dast_zap.json || echo 0)
@@ -299,103 +280,13 @@ jobs:
         run: docker compose -f docker-compose.yml down --volumes --remove-orphans
 
   # ------------------------------------------------------------------
-<<<<<<< HEAD
-  # Job 8: Publicar Imágenes (GHCR + Docker Hub)
-  # ------------------------------------------------------------------
-  publish-and-deploy:
-    name: Publish ':latest' tags (GHCR & Docker Hub)
-=======
   # Job 8: Publicar Etiquetas Latest (Docker Hub)
   # ------------------------------------------------------------------
   publish-and-deploy:
     name: Publish ':latest' on Docker Hub
->>>>>>> feature/pipeline-optimization
     runs-on: ubuntu-latest
     needs: dast
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-<<<<<<< HEAD
-    env:
-      # Variables para GHCR
-      REGISTRY: ghcr.io
-      IMAGE_NAMESPACE: ${{ github.repository }}
-      GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-      
-      # --- NUEVAS VARIABLES ---
-      # Variables para Docker Hub (usando los nuevos secretos)
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      
-    steps:
-      # --- PASO 1: LOGIN EN GHCR (Sin cambios) ---
-      - name: Login to GHCR
-        if: ${{ env.GHCR_TOKEN != '' }}
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ env.GHCR_TOKEN }}
-          
-      # --- PASO 2: NUEVO LOGIN EN DOCKER HUB ---
-      - name: Login to Docker Hub
-        if: ${{ env.DOCKERHUB_TOKEN != '' }}
-        uses: docker/login-action@v3
-        with:
-          # No se especifica 'registry', por defecto es Docker Hub (docker.io)
-          username: ${{ env.DOCKERHUB_USERNAME }}
-          password: ${{ env.DOCKERHUB_TOKEN }}
-
-      # --- PASO 3: PUBLICACIÓN MULTI-REGISTRO (Modificado) ---
-      - name: Publish API Image (GHCR & Docker Hub)
-        run: |
-          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
-          GHCR_TAG_ID="$REGISTRY/$IMAGE_NS/api:${{ github.run_id }}"
-          GHCR_TAG_LATEST="$REGISTRY/$IMAGE_NS/api:latest"
-          DH_TAG_LATEST="${{ env.DOCKERHUB_USERNAME }}/centinela-api:latest"
-
-          docker pull $GHCR_TAG_ID
-          
-          echo "Publicando en GHCR..."
-          docker tag $GHCR_TAG_ID $GHCR_TAG_LATEST
-          docker push $GHCR_TAG_LATEST
-          
-          echo "Publicando en Docker Hub..."
-          docker tag $GHCR_TAG_ID $DH_TAG_LATEST
-          docker push $DH_TAG_LATEST
-
-      - name: Publish Frontend Image (GHCR & Docker Hub)
-        run: |
-          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
-          GHCR_TAG_ID="$REGISTRY/$IMAGE_NS/frontend:${{ github.run_id }}"
-          GHCR_TAG_LATEST="$REGISTRY/$IMAGE_NS/frontend:latest"
-          DH_TAG_LATEST="${{ env.DOCKERHUB_USERNAME }}/centinela-frontend:latest"
-
-          docker pull $GHCR_TAG_ID
-          
-          echo "Publicando en GHCR..."
-          docker tag $GHCR_TAG_ID $GHCR_TAG_LATEST
-          docker push $GHCR_TAG_LATEST
-          
-          echo "Publicando en Docker Hub..."
-          docker tag $GHCR_TAG_ID $DH_TAG_LATEST
-          docker push $DH_TAG_LATEST
-
-      - name: Publish Scraper Image (GHCR & Docker Hub)
-        run: |
-          IMAGE_NS=$(echo "${IMAGE_NAMESPACE}" | tr '[:upper:]' '[:lower:]')
-          GHCR_TAG_ID="$REGISTRY/$IMAGE_NS/scraper:${{ github.run_id }}"
-          GHCR_TAG_LATEST="$REGISTRY/$IMAGE_NS/scraper:latest"
-          DH_TAG_LATEST="${{ env.DOCKERHUB_USERNAME }}/centinela-scraper:latest"
-
-          docker pull $GHCR_TAG_ID
-          
-          echo "Publicando en GHCR..."
-          docker tag $GHCR_TAG_ID $GHCR_TAG_LATEST
-          docker push $GHCR_TAG_LATEST
-          
-          echo "Publicando en Docker Hub..."
-          docker tag $GHCR_TAG_ID $DH_TAG_LATEST
-          docker push $DH_TAG_LATEST
-=======
     steps:
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -409,7 +300,6 @@ jobs:
             docker tag  $IMG_ID:${{ github.run_id }} $IMG_ID:latest
             docker push $IMG_ID:latest
           done
->>>>>>> feature/pipeline-optimization
 
   # ------------------------------------------------------------------
   # Job 9: Limpieza
@@ -442,11 +332,6 @@ jobs:
       - name: 1. Checkout (Obtener código fuente)
         uses: actions/checkout@v4
 
-<<<<<<< HEAD
-      # --- INICIO DE LA SIMULACIÓN ---
-=======
-      # RESTAURADO: Pasos detallados que tenías originalmente
->>>>>>> feature/pipeline-optimization
       - name: 2. (SIMULADO) Configurar clave SSH
         run: |
           echo "Simulando configuración de clave SSH..."
@@ -469,12 +354,7 @@ jobs:
           echo "PASO 2: Ejecutar comandos de despliegue en el servidor vía SSH"
           echo "COMANDO: ssh -o StrictHostKeyChecking=no $SIM_DEPLOY_USER@$SIM_DEPLOY_HOST"
           echo "   > cd /home/ubuntu/centinela"
-<<<<<<< HEAD
-          echo "   > echo '***' | docker login ghcr.io -u ${{ github.actor }} --password-stdin"
-          # ¡AÑADIMOS EL LOGIN DE DOCKER HUB AQUÍ TAMBIÉN!
-=======
           # Actualizado para Docker Hub
->>>>>>> feature/pipeline-optimization
           echo "   > echo '***' | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin"
           echo "   > docker compose pull"
           echo "   > docker compose up -d"
