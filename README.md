@@ -27,9 +27,9 @@ El sistema se compone de 5 servicios totalmente desacoplados:
 ```mermaid
 graph LR
     User((Analista)) -->|HTTP/React| Frontend[Frontend UI]
-    Frontend -->|REST JSON| API[Backend (FastAPI)]
+    Frontend -->|REST JSON| API["Backend (FastAPI)"]
     API -->|Task Queue| Redis[Redis Broker]
-    Redis --> Worker[Scraper Worker (Python)]
+    Redis --> Worker["Scraper Worker (Python)"]
     Worker -->|Web Requests| Web((Sitios Web))
     Worker -->|SQL Insert| DB[(PostgreSQL DB)]
     API -->|SQL Select| DB
