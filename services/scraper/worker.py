@@ -1,26 +1,17 @@
 import requests
+from bs4 import BeautifulSoup
 import redis
 import json
 import time
 import os
 import psycopg2
-from psycopg2.extras import execute_values
+from urllib.parse import urlparse
 
-# ============================ 1. Configuración ============================
+# NOTA: Se eliminó 'from psycopg2.extras import execute_values' que causaba el error F401
 
-# --- ¡CAMBIO! ---
-# Leemos la nueva clave de API desde las variables de entorno
-NEWS_API_KEY = os.getenv("NEWS_API_KEY")
-
-if not NEWS_API_KEY:
-    print("FATAL: No se encontró la variable de entorno 'NEWS_API_KEY'.")
-    # (El worker fallará, lo cual es correcto)
-
-# --- Configuración de Redis ---
+# --- Configuración ---
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 r = redis.Redis(host=REDIS_HOST, port=6379, db=0, decode_responses=True)
-
-# --- Configuración de PostgreSQL ---
 DATABASE_URL = os.getenv("DATABASE_URL")
 db_conn = None
 
@@ -33,7 +24,7 @@ def connect_to_db():
             db_conn.autocommit = True
             print("✅ Worker conectado a PostgreSQL.")
         except psycopg2.OperationalError as e:
-            print(f"Error conectando a PostgreSQL: {e}. Reintentando en 5 segundos...")
+            print(f"Reintentando DB en 5s... {e}")
             time.sleep(5)
 
 
@@ -46,134 +37,140 @@ def setup_database():
                 id SERIAL PRIMARY KEY,
                 author VARCHAR(255),
                 body TEXT,
-                score INTEGER,
+                score INTEGER, 
                 permalink VARCHAR(1024) UNIQUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """
         )
-        print("Tabla 'comments' (artículos) asegurada.")
 
 
-# ============================ 2. Lógica de Scraping (NewsAPI) ============================
+# --- Lógica de Análisis Mejorada ---
+def analizar_contenido(titulo, texto):
+    puntaje = 0
+    razones = []
+
+    # 1. Título Clickbait
+    palabras_alarma = [
+        "URGENTE",
+        "INCREÍBLE",
+        "SHOCK",
+        "FINALMENTE",
+        "SECRETO",
+        "VIRAL",
+        "MUERTE",
+    ]
+    if any(p in titulo.upper() for p in palabras_alarma):
+        puntaje += 25
+        razones.append("Lenguaje alarmista en título")
+
+    # 2. Mayúsculas excesivas
+    if titulo.isupper() or sum(1 for c in titulo if c.isupper()) / len(titulo) > 0.6:
+        puntaje += 20
+        razones.append("Uso excesivo de mayúsculas")
+
+    # 3. Palabras de conflicto en cuerpo
+    palabras_polarizantes = [
+        "traición",
+        "destruir",
+        "vergüenza",
+        "conspiración",
+        "farsa",
+    ]
+    count_polar = sum(1 for p in palabras_polarizantes if p in texto.lower())
+    if count_polar > 0:
+        puntaje += 15
+        razones.append(f"Detectadas {count_polar} palabras polarizantes")
+
+    # 4. Texto muy corto (sospechoso)
+    if len(texto.split()) < 150:
+        puntaje += 10
+        razones.append("Artículo sospechosamente corto")
+
+    return min(puntaje, 100), razones
 
 
-# --- ¡NUEVA FUNCIÓN! ---
-def get_news_articles(keyword, language="es", limit=25):
-    """
-    Busca artículos de noticias usando NewsAPI.
-    """
-    articles_data = []
+def scrapear_sitio_web(url):
+    # --- MODO SIMULACRO ---
+    if "simulacro" in url:
+        return {
+            "author": "dark-web-fake.com",
+            "body": "REPORT_METADATA:['Título alarmista', 'Fuente no verificada', 'Texto generado artificialmente']::: ¡URGENTE! ¡INCREÍBLE! LO QUE NO QUIEREN QUE SEPAS. Este es un texto de prueba simulado para validar el sistema de alertas.",
+            "score": 95,
+            "permalink": url,
+        }
 
-    # URL de la API de NewsAPI
-    API_URL = "https://newsapi.org/v2/everything"
-
-    params = {
-        "q": keyword,
-        "language": language,
-        "pageSize": limit,
-        "apiKey": NEWS_API_KEY,
+    # --- SCRAPING REAL ---
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124"
     }
-
     try:
-        print(f"Contactando NewsAPI para '{keyword}' en '{language}'...")
-        response = requests.get(API_URL, params=params)
+        print(f"Analizando: {url}")
+        response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
 
-        results = response.json()
+        titulo = (
+            soup.find("h1").get_text(strip=True) if soup.find("h1") else "Sin título"
+        )
+        texto_cuerpo = (
+            " ".join([p.get_text(strip=True) for p in soup.find_all("p")])
+            or "Sin texto legible"
+        )
 
-        for article in results.get("articles", []):
-            # Mapeamos los campos de NewsAPI a nuestro modelo de 'comments'
-            articles_data.append(
-                {
-                    "author": article.get("author") or "Fuente desconocida",
-                    "body": f"{article.get('title')} - {article.get('description')}",
-                    "score": 0,  # NewsAPI no tiene 'score'
-                    "permalink": article.get(
-                        "url"
-                    ),  # 'url' es nuestro 'permalink' único
-                }
-            )
+        puntaje, razones = analizar_contenido(titulo, texto_cuerpo)
 
-            if len(articles_data) >= limit:
-                break
+        body_con_metadata = f"REPORT_METADATA:{json.dumps(razones)}::: {texto_cuerpo}"
 
-    except requests.exceptions.RequestException as e:
-        print(f"Error en NewsAPI: {e}")
-        return []
+        return {
+            "author": urlparse(url).netloc,
+            "body": body_con_metadata,
+            "score": puntaje,
+            "permalink": url,
+        }
     except Exception as e:
-        print(f"Error al parsear JSON: {e}")
-        return []
-
-    return articles_data
+        print(f"Error scraping {url}: {e}")
+        return None
 
 
-# --- Función para guardar en la BD (Modificada para ser más robusta) ---
-def save_articles_to_db(articles):
-    if not articles:
+def save_analysis_to_db(data):
+    if not data:
         return
-
-    values = [(a["author"], a["body"], a["score"], a["permalink"]) for a in articles]
-
     try:
         with db_conn.cursor() as cur:
-            execute_values(
-                cur,
+            cur.execute(
                 """
                 INSERT INTO comments (author, body, score, permalink)
-                VALUES %s
+                VALUES (%s, %s, %s, %s)
                 ON CONFLICT (permalink) DO UPDATE SET
                     body = EXCLUDED.body,
                     score = EXCLUDED.score,
-                    created_at = CURRENT_TIMESTAMP
-                """,
-                values,
+                    created_at = CURRENT_TIMESTAMP;
+            """,
+                (data["author"], data["body"], data["score"], data["permalink"]),
             )
-            print(f"✅ Se guardaron/actualizaron {len(values)} artículos en la BD.")
-    except psycopg2.Error as e:
-        print(f"Error al guardar en la BD: {e}")
-        db_conn.rollback()
+            print(f"✅ Guardado: {data['score']}% Fake")
     except Exception as e:
-        print(f"Error inesperado en BD: {e}")
-
-
-# ============================ 3. El Bucle del Worker ============================
+        print(f"Error BD: {e}")
+        db_conn.rollback()
 
 
 def main():
-    print("✅ Worker de scraping 'Centinela' (NewsAPI) iniciado.")
-    print(f"Conectando a Redis en {REDIS_HOST}...")
+    print("✅ Worker Centinela v2.0 INICIADO")
     setup_database()
-
     while True:
         try:
             with r.client() as conn:
-                print("Esperando trabajos en la cola 'scrape_queue'...")
                 job = conn.blpop("scrape_queue", 0)
-
-            if job:
-                job_data = json.loads(job[1])
-                keyword = job_data.get("keyword")
-                language = job_data.get("language", "es")  # 'es' por defecto
-
-                if keyword:
-                    print(
-                        f"Iniciando trabajo: Scrapear NewsAPI para '{keyword}' en '{language}'..."
-                    )
-
-                    # --- ¡CAMBIO! ---
-                    articles = get_news_articles(keyword, language, limit=50)
-
-                    if articles:
-                        save_articles_to_db(articles)
-                    else:
-                        print("❌ Trabajo completado: No se encontraron artículos.")
-
-        except redis.exceptions.ConnectionError as e:
-            print(f"Error de conexión con Redis: {e}. Reintentando...")
-            time.sleep(5)
+                if job:
+                    data = json.loads(job[1])
+                    url = data.get("url")
+                    if url:
+                        res = scrapear_sitio_web(url)
+                        save_analysis_to_db(res)
         except Exception as e:
-            print(f"Error inesperado: {e}")
+            # CORRECCIÓN ERROR F841: Ahora usamos la variable 'e' imprimiéndola
+            print(f"Error en loop principal: {e}")
             time.sleep(5)
 
 
