@@ -290,3 +290,8 @@ Automáticamente generada en GitHub Actions:
 
 *Arquitectura segura, reproducible y diseñada bajo mejores prácticas DevSecOps.*
 
+## 🎥 Video de Sustentación
+Mira la demostración completa del ciclo DevSecOps y el despliegue en vivo:
+
+[![Ver Video de Sustentación](https://img.youtube.com/vi/HkRN00mQ6EM/0.jpg)](https://www.youtube.com/watch?v=HkRN00mQ6EM)
+
