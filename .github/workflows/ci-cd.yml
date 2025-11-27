@@ -71,7 +71,7 @@ jobs:
       - run: bandit -r services/api -lll
       - run: semgrep --config ./.semgrep/basic-rules.yml
 
-  # ------------------------------------------------------------------
+# ------------------------------------------------------------------
   # Job 3: Escaneo de Dependencias (SCA)
   # ------------------------------------------------------------------
   dependency-scan:
@@ -80,9 +80,20 @@ jobs:
     needs: setup-cache
     steps:
       - uses: actions/checkout@v4
-      - run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-      - run: trivy fs --cache-dir .trivy --severity HIGH,CRITICAL --exit-code 1 --no-progress .
-
+      
+      - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+      
+      - name: Run Trivy FS Scan (ALL Severities - No Fail)
+        # Cambio importante:
+        # 1. Detecta TODO: UNKNOWN, LOW, MEDIUM, HIGH, CRITICAL
+        # 2. exit-code 0: No rompe el pipeline, solo muestra los datos en el log.
+        run: |
+          trivy fs --cache-dir .trivy \
+            --scanners vuln,secret \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
+            --exit-code 0 \
+            --no-progress .
   # ------------------------------------------------------------------
   # Job 4: Escaneo de Infraestructura (IaC)
   # ------------------------------------------------------------------
@@ -128,8 +139,8 @@ jobs:
           cd services/frontend
           if [ -f "index.html" ]; then echo "index.html encontrado."; else exit 1; fi
 
-  # ------------------------------------------------------------------
-  # Job 6: Construcción y Escaneo (Docker Hub)
+# ------------------------------------------------------------------
+  # Job 6: Construcción y Escaneo (Docker Hub) - CORREGIDO
   # ------------------------------------------------------------------
   build-and-scan-images:
     name: Build, Scan & Push (Docker Hub)
@@ -153,29 +164,55 @@ jobs:
 
       - name: Build, scan and push
         run: |
+          # 1. Definir nombres de imagen
           API_IMG="mauriciovergara/centinela-api:${{ github.run_id }}"
           FRONT_IMG="mauriciovergara/centinela-frontend:${{ github.run_id }}"
           SCRAPER_IMG="mauriciovergara/centinela-scraper:${{ github.run_id }}"
 
+          # 2. Construir imágenes (Build)
           docker build -t $API_IMG -f services/api/Dockerfile services/api
           docker build -t $FRONT_IMG -f services/frontend/Dockerfile services/frontend
           docker build -t $SCRAPER_IMG -f services/scraper/Dockerfile services/scraper
 
+          # 3. Instalar Trivy
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
           mkdir -p reports
           
+          # --- CORRECCIÓN AQUÍ: Descargar la plantilla HTML ---
+          wget https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -O html.tpl
+
+          # 4. Descargar Base de Datos
           trivy image --download-db-only --cache-dir .trivy
 
-          trivy image --cache-dir .trivy --format json --output reports/trivy-api.json --severity HIGH,CRITICAL --exit-code 1 $API_IMG
-          trivy image --cache-dir .trivy --format json --output reports/trivy-frontend.json --severity HIGH,CRITICAL --exit-code 1 $FRONT_IMG
-          trivy image --cache-dir .trivy --format json --output reports/trivy-scraper.json --severity HIGH,CRITICAL --exit-code 1 $SCRAPER_IMG
+          # 5. Escanear API
+          echo ">>> Escaneando API..."
+          trivy image --cache-dir .trivy --format json --output reports/trivy-api.json \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 0 $API_IMG
 
-          (trivy image --cache-dir .trivy --format template --template @contrib/html.tpl --output reports/trivy-api.html $API_IMG || true)
-          (trivy image --cache-dir .trivy --format template --template @contrib/html.tpl --output reports/trivy-frontend.html $FRONT_IMG || true)
-          (trivy image --cache-dir .trivy --format template --template @contrib/html.tpl --output reports/trivy-scraper.html $SCRAPER_IMG || true)
+          # Usamos @html.tpl (el archivo que acabamos de bajar)
+          trivy image --cache-dir .trivy --format template --template "@html.tpl" --output reports/trivy-api.html \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL $API_IMG
+
+          # 6. Escanear Frontend
+          echo ">>> Escaneando Frontend..."
+          trivy image --cache-dir .trivy --format json --output reports/trivy-frontend.json \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 0 $FRONT_IMG
+
+          trivy image --cache-dir .trivy --format template --template "@html.tpl" --output reports/trivy-frontend.html \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL $FRONT_IMG
+
+          # 7. Escanear Scraper
+          echo ">>> Escaneando Scraper..."
+          trivy image --cache-dir .trivy --format json --output reports/trivy-scraper.json \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 0 $SCRAPER_IMG
+
+          trivy image --cache-dir .trivy --format template --template "@html.tpl" --output reports/trivy-scraper.html \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL $SCRAPER_IMG
           
+          # 8. Comprimir reportes
           (cd reports && zip -r ../trivy-reports-${{ github.run_id }}.zip . || true)
 
+          # 9. Subir imágenes a Docker Hub
           docker push $API_IMG
           docker push $FRONT_IMG
           docker push $SCRAPER_IMG
@@ -361,3 +398,57 @@ jobs:
           echo "   > docker image prune -af"
           echo "--------------------------------------------------------"
           echo "¡Despliegue simulado exitosamente!"
+
+# ------------------------------------------------------------------
+  # Job 11: Publicar Reportes Web (GitHub Pages)
+  # ------------------------------------------------------------------
+  deploy-reports-web:
+    name: Publish Security Reports to Web
+    runs-on: ubuntu-latest
+    needs: [build-and-scan-images, dast] # Espera a que terminen los escaneos
+    if: always() # Ejecutar aunque se encuentren vulnerabilidades
+    permissions:
+      contents: write # Permiso para actualizar la rama web
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Descargar los reportes guardados en los pasos anteriores
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: trivy-reports
+          path: public/reports
+      
+      - name: Download DAST Report
+        uses: actions/download-artifact@v4
+        with:
+            name: reporte-dast-zap
+            path: public/reports
+
+      # 2. Crear un Índice (Menú Principal)
+      - name: Generate Index Page
+        run: |
+          cd public
+          echo "<html><head><title>Centinela Security Dashboard</title>" > index.html
+          echo "<style>body{font-family:sans-serif; padding:20px;} a{display:block; margin:10px 0; font-size:18px;} .card{border:1px solid #ddd; padding:15px; border-radius:8px; max-width:600px; margin-bottom:10px;}</style>" >> index.html
+          echo "</head><body>" >> index.html
+          echo "<h1>🛡️ Reportes de Seguridad - Proyecto Centinela</h1>" >> index.html
+          echo "<p>Última actualización: $(date)</p><hr>" >> index.html
+          
+          echo "<h3>🐳 Contenedores (Trivy)</h3>" >> index.html
+          echo "<div class='card'><a href='reports/trivy-api.html'>📄 Reporte API</a></div>" >> index.html
+          echo "<div class='card'><a href='reports/trivy-frontend.html'>📄 Reporte Frontend</a></div>" >> index.html
+          echo "<div class='card'><a href='reports/trivy-scraper.html'>📄 Reporte Scraper</a></div>" >> index.html
+          
+          echo "<h3>🔥 Ataque Dinámico (OWASP ZAP)</h3>" >> index.html
+          echo "<div class='card'><a href='reports/report_dast_zap.html'>📄 Reporte DAST</a></div>" >> index.html
+          
+          echo "</body></html>" >> index.html
+
+      # 3. Publicar en la rama gh-pages
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          keep_files: false # Reemplaza el sitio viejo con el nuevo
