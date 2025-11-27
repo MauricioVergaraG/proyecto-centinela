@@ -1,8 +1,8 @@
 {
 	"@programName": "ZAP",
 	"@version": "2.16.1",
-	"@generated": "Thu, 27 Nov 2025 05:07:43",
-	"created": "2025-11-27T05:07:43.842131015Z",
+	"@generated": "Thu, 27 Nov 2025 05:21:06",
+	"created": "2025-11-27T05:21:06.664960164Z",
 	"site":[ 
 		{
 			"@name": "http://frontend",
@@ -68,7 +68,7 @@
 					"reference": "<p>https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Frame-Options</p>",
 					"cweid": "1021",
 					"wascid": "15",
-					"sourceid": "1"
+					"sourceid": "4"
 				},
 				{
 					"pluginid": "90003",
@@ -101,7 +101,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "36",
+							"id": "39",
 							"uri": "http://frontend:80",
 							"nodeName": null,
 							"method": "GET",
@@ -111,7 +111,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "39",
+							"id": "40",
 							"uri": "http://frontend:80",
 							"nodeName": null,
 							"method": "GET",
@@ -121,7 +121,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "35",
+							"id": "36",
 							"uri": "http://frontend:80",
 							"nodeName": null,
 							"method": "GET",
@@ -131,7 +131,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "34",
+							"id": "35",
 							"uri": "http://frontend:80",
 							"nodeName": null,
 							"method": "GET",
@@ -141,7 +141,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "32",
+							"id": "31",
 							"uri": "http://frontend:80",
 							"nodeName": null,
 							"method": "GET",
@@ -158,7 +158,7 @@
 					"reference": "<p>https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity</p>",
 					"cweid": "345",
 					"wascid": "15",
-					"sourceid": "4"
+					"sourceid": "1"
 				},
 				{
 					"pluginid": "10017",
@@ -171,7 +171,7 @@
 					"desc": "<p>The page includes one or more script files from a third-party domain.</p>",
 					"instances":[ 
 						{
-							"id": "5",
+							"id": "4",
 							"uri": "http://frontend:80",
 							"nodeName": null,
 							"method": "GET",
@@ -201,7 +201,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "11",
+							"id": "10",
 							"uri": "http://frontend:80",
 							"nodeName": null,
 							"method": "GET",
@@ -211,7 +211,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "8",
+							"id": "7",
 							"uri": "http://frontend:80",
 							"nodeName": null,
 							"method": "GET",
@@ -261,7 +261,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "26",
+							"id": "25",
 							"uri": "http://frontend:80",
 							"nodeName": null,
 							"method": "GET",
@@ -288,7 +288,7 @@
 					"reference": "<p>https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy</p>",
 					"cweid": "693",
 					"wascid": "14",
-					"sourceid": "4"
+					"sourceid": "1"
 				},
 				{
 					"pluginid": "10063",
@@ -378,7 +378,7 @@
 					"reference": "",
 					"cweid": "-1",
 					"wascid": "-1",
-					"sourceid": "1"
+					"sourceid": "4"
 				},
 				{
 					"pluginid": "10049",
@@ -391,7 +391,7 @@
 					"desc": "<p>The response contents are storable by caching components such as proxy servers, but will not be retrieved directly from the cache, without validating the request upstream, in response to similar requests from other users.</p>",
 					"instances":[ 
 						{
-							"id": "21",
+							"id": "20",
 							"uri": "http://frontend:80",
 							"nodeName": null,
 							"method": "GET",
@@ -408,7 +408,7 @@
 					"reference": "<p>https://datatracker.ietf.org/doc/html/rfc7234</p><p>https://datatracker.ietf.org/doc/html/rfc7231</p><p>https://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html</p>",
 					"cweid": "524",
 					"wascid": "13",
-					"sourceid": "4"
+					"sourceid": "1"
 				}
 			]
 		}

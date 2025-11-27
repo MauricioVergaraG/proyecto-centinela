@@ -1,7 +1,7 @@
 {
   "SchemaVersion": 2,
-  "CreatedAt": "2025-11-27T05:04:46.732435656Z",
-  "ArtifactName": "mauriciovergara/centinela-frontend:19725760882",
+  "CreatedAt": "2025-11-27T05:18:32.603656981Z",
+  "ArtifactName": "mauriciovergara/centinela-frontend:19726004825",
   "ArtifactType": "container_image",
   "Metadata": {
     "Size": 15066112,
@@ -9,7 +9,7 @@
       "Family": "alpine",
       "Name": "3.21.3"
     },
-    "ImageID": "sha256:3b6bef1ea48c591dbadf0dea7ceeb2f397f82c9da966a3bb8e484f93382874f7",
+    "ImageID": "sha256:ffbdf511c7eef4222d22294205f67bf92ebee2cec4fbb241bc916e8141c27b34",
     "DiffIDs": [
       "sha256:08000c18d16dadf9553d747a58cf44023423a9ab010aab96cf263d2216b8b350",
       "sha256:d71eae0084c1aa823dd8fb2ecf8604d5c0f4911226c042bb1f8297e819f4b192",
@@ -18,17 +18,17 @@
       "sha256:b8d7d1d2263425d6044e059b2810017d062d659b9b755241f3747eda77726250",
       "sha256:811a4dbbf4a5309e4390cf655c12db92e1a4304fb9d9731f83e7b02e95a617c6",
       "sha256:947e805a4ac71f68e6703550c0b36c2aa2e554c4fa670ca2da6a25c6d7dccb66",
-      "sha256:86a0868c6695633067ca4bc53db7d364c3f40edce7e791d5dd0f03e8d0851746",
-      "sha256:4e12c610ddb9bbf91d1b374cd884d7b813c5b3dc98dcd1cf286000a0fc45b0de",
-      "sha256:377079be34020003c6f3edcebc66b8e00d46c5a68f6fb80fb9b688ff1db8d158",
-      "sha256:4e10be4a165ab0857341a5d6b377e3b9624e304dd3aa080593303ef45fb367c9"
+      "sha256:52ff5f7c9de888362424b9baa27dacf226fcb280c14ef7818316e888e2f6212d",
+      "sha256:6de062542460f9b142c1b6ac8b898bce88e820b0cf5a35c15c4d66cd633b91bb",
+      "sha256:69e4c72efc7fc8736fa53ccdce53abe365f648bec48476e6fe535c7151a60c9e",
+      "sha256:1c0726e3c36e9bffcf389f7dcdc0fd5d3689af9754ebd41bfd34d8cd5bf8efd6"
     ],
     "RepoTags": [
-      "mauriciovergara/centinela-frontend:19725760882"
+      "mauriciovergara/centinela-frontend:19726004825"
     ],
     "ImageConfig": {
       "architecture": "amd64",
-      "created": "2025-11-27T05:04:32.159354381Z",
+      "created": "2025-11-27T05:18:18.368138912Z",
       "history": [
         {
           "created": "2025-02-14T03:28:36Z",
@@ -120,33 +120,33 @@
           "empty_layer": true
         },
         {
-          "created": "2025-11-27T05:04:32Z",
+          "created": "2025-11-27T05:18:18Z",
           "created_by": "COPY index.html /usr/share/nginx/html/index.html # buildkit",
           "comment": "buildkit.dockerfile.v0"
         },
         {
-          "created": "2025-11-27T05:04:32Z",
+          "created": "2025-11-27T05:18:18Z",
           "created_by": "COPY README_APP.md /usr/share/nginx/html/README_APP.md # buildkit",
           "comment": "buildkit.dockerfile.v0"
         },
         {
-          "created": "2025-11-27T05:04:32Z",
+          "created": "2025-11-27T05:18:18Z",
           "created_by": "COPY src/images/logo.png /usr/share/nginx/html/logo.png # buildkit",
           "comment": "buildkit.dockerfile.v0"
         },
         {
-          "created": "2025-11-27T05:04:32Z",
+          "created": "2025-11-27T05:18:18Z",
           "created_by": "COPY nginx.conf /etc/nginx/conf.d/default.conf # buildkit",
           "comment": "buildkit.dockerfile.v0"
         },
         {
-          "created": "2025-11-27T05:04:32Z",
+          "created": "2025-11-27T05:18:18Z",
           "created_by": "EXPOSE map[80/tcp:{}]",
           "comment": "buildkit.dockerfile.v0",
           "empty_layer": true
         },
         {
-          "created": "2025-11-27T05:04:32Z",
+          "created": "2025-11-27T05:18:18Z",
           "created_by": "CMD [\"nginx\" \"-g\" \"daemon off;\"]",
           "comment": "buildkit.dockerfile.v0",
           "empty_layer": true
@@ -163,10 +163,10 @@
           "sha256:b8d7d1d2263425d6044e059b2810017d062d659b9b755241f3747eda77726250",
           "sha256:811a4dbbf4a5309e4390cf655c12db92e1a4304fb9d9731f83e7b02e95a617c6",
           "sha256:947e805a4ac71f68e6703550c0b36c2aa2e554c4fa670ca2da6a25c6d7dccb66",
-          "sha256:86a0868c6695633067ca4bc53db7d364c3f40edce7e791d5dd0f03e8d0851746",
-          "sha256:4e12c610ddb9bbf91d1b374cd884d7b813c5b3dc98dcd1cf286000a0fc45b0de",
-          "sha256:377079be34020003c6f3edcebc66b8e00d46c5a68f6fb80fb9b688ff1db8d158",
-          "sha256:4e10be4a165ab0857341a5d6b377e3b9624e304dd3aa080593303ef45fb367c9"
+          "sha256:52ff5f7c9de888362424b9baa27dacf226fcb280c14ef7818316e888e2f6212d",
+          "sha256:6de062542460f9b142c1b6ac8b898bce88e820b0cf5a35c15c4d66cd633b91bb",
+          "sha256:69e4c72efc7fc8736fa53ccdce53abe365f648bec48476e6fe535c7151a60c9e",
+          "sha256:1c0726e3c36e9bffcf389f7dcdc0fd5d3689af9754ebd41bfd34d8cd5bf8efd6"
         ]
       },
       "config": {
@@ -226,25 +226,25 @@
       },
       {
         "Size": 19968,
-        "DiffID": "sha256:86a0868c6695633067ca4bc53db7d364c3f40edce7e791d5dd0f03e8d0851746"
+        "DiffID": "sha256:52ff5f7c9de888362424b9baa27dacf226fcb280c14ef7818316e888e2f6212d"
       },
       {
         "Size": 8704,
-        "DiffID": "sha256:4e12c610ddb9bbf91d1b374cd884d7b813c5b3dc98dcd1cf286000a0fc45b0de"
+        "DiffID": "sha256:6de062542460f9b142c1b6ac8b898bce88e820b0cf5a35c15c4d66cd633b91bb"
       },
       {
         "Size": 2376192,
-        "DiffID": "sha256:377079be34020003c6f3edcebc66b8e00d46c5a68f6fb80fb9b688ff1db8d158"
+        "DiffID": "sha256:69e4c72efc7fc8736fa53ccdce53abe365f648bec48476e6fe535c7151a60c9e"
       },
       {
         "Size": 6144,
-        "DiffID": "sha256:4e10be4a165ab0857341a5d6b377e3b9624e304dd3aa080593303ef45fb367c9"
+        "DiffID": "sha256:1c0726e3c36e9bffcf389f7dcdc0fd5d3689af9754ebd41bfd34d8cd5bf8efd6"
       }
     ]
   },
   "Results": [
     {
-      "Target": "mauriciovergara/centinela-frontend:19725760882 (alpine 3.21.3)",
+      "Target": "mauriciovergara/centinela-frontend:19726004825 (alpine 3.21.3)",
       "Class": "os-pkgs",
       "Type": "alpine",
       "Packages": [
