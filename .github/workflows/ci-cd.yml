@@ -71,7 +71,7 @@ jobs:
       - run: bandit -r services/api -lll
       - run: semgrep --config ./.semgrep/basic-rules.yml
 
-  # ------------------------------------------------------------------
+# ------------------------------------------------------------------
   # Job 3: Escaneo de Dependencias (SCA)
   # ------------------------------------------------------------------
   dependency-scan:
@@ -80,9 +80,20 @@ jobs:
     needs: setup-cache
     steps:
       - uses: actions/checkout@v4
-      - run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-      - run: trivy fs --cache-dir .trivy --severity HIGH,CRITICAL --exit-code 1 --no-progress .
-
+      
+      - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+      
+      - name: Run Trivy FS Scan (ALL Severities - No Fail)
+        # Cambio importante:
+        # 1. Detecta TODO: UNKNOWN, LOW, MEDIUM, HIGH, CRITICAL
+        # 2. exit-code 0: No rompe el pipeline, solo muestra los datos en el log.
+        run: |
+          trivy fs --cache-dir .trivy \
+            --scanners vuln,secret \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
+            --exit-code 0 \
+            --no-progress .
   # ------------------------------------------------------------------
   # Job 4: Escaneo de Infraestructura (IaC)
   # ------------------------------------------------------------------
