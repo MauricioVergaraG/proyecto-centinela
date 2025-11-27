@@ -61,32 +61,32 @@ flowchart LR
     Prep([Prepare & Cache])
     
     %% 2. Bloque Paralelo de Seguridad
-    subgraph Security_Checks [Parallel Security Checks]
+    subgraph Security_Checks ["Parallel Security Checks"]
         direction TB
-        SCA[Dependency Scan]
-        IaC[IaC Scan]
-        SAST[Lint / Format / SAST]
+        SCA["Dependency Scan"]
+        IaC["IaC Scan"]
+        SAST["Lint / Format / SAST"]
     end
     
     %% 3. Pruebas y Construcción
-    Test[Unit & Smoke Tests]
-    Build[Build, Scan & Push]
+    Test["Unit & Smoke Tests"]
+    Build["Build, Scan & Push"]
     
     %% 4. Seguridad Dinámica
-    DAST[DAST - OWASP ZAP]
+    DAST["DAST - OWASP ZAP"]
     
     %% 5. Publicación
-    Pub[Publish :latest]
+    Pub["Publish :latest"]
     
     %% 6. Finalización Paralela
-    subgraph Final_Steps [Reporting & Deploy]
+    subgraph Final_Steps ["Reporting & Deploy"]
         direction TB
-        Web[Publish Reports Web]
-        Clean[Cleanup]
-        Deploy[Deploy (Sim)]
+        Web["Publish Reports Web"]
+        Clean["Cleanup"]
+        Deploy["Deploy (Simulado)"]
     end
 
-    %% CONEXIONES (El flujo real)
+    %% CONEXIONES
     Prep --> SCA & IaC & SAST
     SCA & IaC & SAST --> Test
     Test --> Build
@@ -94,7 +94,7 @@ flowchart LR
     DAST --> Pub
     Pub --> Web & Clean & Deploy
 
-    %% ESTILOS (Para que se vea profesional)
+    %% ESTILOS
     classDef plain fill:#fff,stroke:#333,stroke-width:1px;
     classDef success fill:#e6fffa,stroke:#2c7a7b,stroke-width:2px;
     classDef warning fill:#fffaf0,stroke:#c05621,stroke-width:2px;
@@ -118,6 +118,7 @@ flowchart LR
 | **6. Container Security** | Trivy (Image) | 🩻 **Rayos X del Aeropuerto:** Escanear la maleta cerrada. | Analiza la imagen Docker final (Sistema Operativo + App) buscando fallos en el sistema base. | Asegurar el paquete final antes de enviarlo. |
 | **7. DAST** (Dinámico) | OWASP ZAP | 🥷 **El Ladrón contratado:** Intentar entrar a la fuerza. | Ataca la aplicación mientras está funcionando (simula hackers reales). | Encontrar fallos que solo aparecen cuando la app está viva. |
 | **8. Registry** | Docker Hub / GHCR | 🏦 **La Bóveda:** El estante seguro. | Almacena y certifica la imagen final que pasó todas las pruebas anteriores. | Tener un lugar centralizado y seguro para el despliegue. |
+| **9. Reporting** | GitHub Pages | 📊 **El Tablero de Resultados:** Publicar las notas en la pared. | Toma los reportes HTML generados y los publica como un sitio web estático. | **Visibilidad:** Que los humanos puedan leer y auditar el estado de seguridad fácilmente. |
 
 ---
 
