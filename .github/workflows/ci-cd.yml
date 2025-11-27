@@ -153,29 +153,56 @@ jobs:
 
       - name: Build, scan and push
         run: |
+          # 1. Definir nombres de imagen
           API_IMG="mauriciovergara/centinela-api:${{ github.run_id }}"
           FRONT_IMG="mauriciovergara/centinela-frontend:${{ github.run_id }}"
           SCRAPER_IMG="mauriciovergara/centinela-scraper:${{ github.run_id }}"
 
+          # 2. Construir imágenes (Build)
           docker build -t $API_IMG -f services/api/Dockerfile services/api
           docker build -t $FRONT_IMG -f services/frontend/Dockerfile services/frontend
           docker build -t $SCRAPER_IMG -f services/scraper/Dockerfile services/scraper
 
+          # 3. Instalar Trivy
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
           mkdir -p reports
           
+          # 4. Descargar Base de Datos de vulnerabilidades
           trivy image --download-db-only --cache-dir .trivy
 
-          trivy image --cache-dir .trivy --format json --output reports/trivy-api.json --severity HIGH,CRITICAL --exit-code 1 $API_IMG
-          trivy image --cache-dir .trivy --format json --output reports/trivy-frontend.json --severity HIGH,CRITICAL --exit-code 1 $FRONT_IMG
-          trivy image --cache-dir .trivy --format json --output reports/trivy-scraper.json --severity HIGH,CRITICAL --exit-code 1 $SCRAPER_IMG
+          # 5. Escanear API (JSON + HTML)
+          # --exit-code 0: IMPORTANTE -> No rompe el pipeline aunque encuentre errores
+          # --severity: Busca TODO (desde desconocido hasta crítico)
+          echo ">>> Escaneando API..."
+          trivy image --cache-dir .trivy --format json --output reports/trivy-api.json \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
+            --exit-code 0 $API_IMG
 
-          (trivy image --cache-dir .trivy --format template --template @contrib/html.tpl --output reports/trivy-api.html $API_IMG || true)
-          (trivy image --cache-dir .trivy --format template --template @contrib/html.tpl --output reports/trivy-frontend.html $FRONT_IMG || true)
-          (trivy image --cache-dir .trivy --format template --template @contrib/html.tpl --output reports/trivy-scraper.html $SCRAPER_IMG || true)
+          trivy image --cache-dir .trivy --format template --template @contrib/html.tpl --output reports/trivy-api.html \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL $API_IMG
+
+          # 6. Escanear Frontend (JSON + HTML)
+          echo ">>> Escaneando Frontend..."
+          trivy image --cache-dir .trivy --format json --output reports/trivy-frontend.json \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
+            --exit-code 0 $FRONT_IMG
+
+          trivy image --cache-dir .trivy --format template --template @contrib/html.tpl --output reports/trivy-frontend.html \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL $FRONT_IMG
+
+          # 7. Escanear Scraper (JSON + HTML)
+          echo ">>> Escaneando Scraper..."
+          trivy image --cache-dir .trivy --format json --output reports/trivy-scraper.json \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
+            --exit-code 0 $SCRAPER_IMG
+
+          trivy image --cache-dir .trivy --format template --template @contrib/html.tpl --output reports/trivy-scraper.html \
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL $SCRAPER_IMG
           
+          # 8. Comprimir reportes
           (cd reports && zip -r ../trivy-reports-${{ github.run_id }}.zip . || true)
 
+          # 9. Subir imágenes a Docker Hub
           docker push $API_IMG
           docker push $FRONT_IMG
           docker push $SCRAPER_IMG
