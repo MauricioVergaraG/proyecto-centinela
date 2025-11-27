@@ -139,8 +139,8 @@ jobs:
           cd services/frontend
           if [ -f "index.html" ]; then echo "index.html encontrado."; else exit 1; fi
 
-  # ------------------------------------------------------------------
-  # Job 6: Construcción y Escaneo (Docker Hub)
+# ------------------------------------------------------------------
+  # Job 6: Construcción y Escaneo (Docker Hub) - CORREGIDO
   # ------------------------------------------------------------------
   build-and-scan-images:
     name: Build, Scan & Push (Docker Hub)
@@ -178,36 +178,35 @@ jobs:
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
           mkdir -p reports
           
-          # 4. Descargar Base de Datos de vulnerabilidades
+          # --- CORRECCIÓN AQUÍ: Descargar la plantilla HTML ---
+          wget https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -O html.tpl
+
+          # 4. Descargar Base de Datos
           trivy image --download-db-only --cache-dir .trivy
 
-          # 5. Escanear API (JSON + HTML)
-          # --exit-code 0: IMPORTANTE -> No rompe el pipeline aunque encuentre errores
-          # --severity: Busca TODO (desde desconocido hasta crítico)
+          # 5. Escanear API
           echo ">>> Escaneando API..."
           trivy image --cache-dir .trivy --format json --output reports/trivy-api.json \
-            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
-            --exit-code 0 $API_IMG
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 0 $API_IMG
 
-          trivy image --cache-dir .trivy --format template --template @contrib/html.tpl --output reports/trivy-api.html \
+          # Usamos @html.tpl (el archivo que acabamos de bajar)
+          trivy image --cache-dir .trivy --format template --template "@html.tpl" --output reports/trivy-api.html \
             --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL $API_IMG
 
-          # 6. Escanear Frontend (JSON + HTML)
+          # 6. Escanear Frontend
           echo ">>> Escaneando Frontend..."
           trivy image --cache-dir .trivy --format json --output reports/trivy-frontend.json \
-            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
-            --exit-code 0 $FRONT_IMG
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 0 $FRONT_IMG
 
-          trivy image --cache-dir .trivy --format template --template @contrib/html.tpl --output reports/trivy-frontend.html \
+          trivy image --cache-dir .trivy --format template --template "@html.tpl" --output reports/trivy-frontend.html \
             --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL $FRONT_IMG
 
-          # 7. Escanear Scraper (JSON + HTML)
+          # 7. Escanear Scraper
           echo ">>> Escaneando Scraper..."
           trivy image --cache-dir .trivy --format json --output reports/trivy-scraper.json \
-            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
-            --exit-code 0 $SCRAPER_IMG
+            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 0 $SCRAPER_IMG
 
-          trivy image --cache-dir .trivy --format template --template @contrib/html.tpl --output reports/trivy-scraper.html \
+          trivy image --cache-dir .trivy --format template --template "@html.tpl" --output reports/trivy-scraper.html \
             --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL $SCRAPER_IMG
           
           # 8. Comprimir reportes
