@@ -398,3 +398,57 @@ jobs:
           echo "   > docker image prune -af"
           echo "--------------------------------------------------------"
           echo "¡Despliegue simulado exitosamente!"
+
+# ------------------------------------------------------------------
+  # Job 11: Publicar Reportes Web (GitHub Pages)
+  # ------------------------------------------------------------------
+  deploy-reports-web:
+    name: Publish Security Reports to Web
+    runs-on: ubuntu-latest
+    needs: [build-and-scan-images, dast] # Espera a que terminen los escaneos
+    if: always() # Ejecutar aunque se encuentren vulnerabilidades
+    permissions:
+      contents: write # Permiso para actualizar la rama web
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Descargar los reportes guardados en los pasos anteriores
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: trivy-reports
+          path: public/reports
+      
+      - name: Download DAST Report
+        uses: actions/download-artifact@v4
+        with:
+            name: reporte-dast-zap
+            path: public/reports
+
+      # 2. Crear un Índice (Menú Principal)
+      - name: Generate Index Page
+        run: |
+          cd public
+          echo "<html><head><title>Centinela Security Dashboard</title>" > index.html
+          echo "<style>body{font-family:sans-serif; padding:20px;} a{display:block; margin:10px 0; font-size:18px;} .card{border:1px solid #ddd; padding:15px; border-radius:8px; max-width:600px; margin-bottom:10px;}</style>" >> index.html
+          echo "</head><body>" >> index.html
+          echo "<h1>🛡️ Reportes de Seguridad - Proyecto Centinela</h1>" >> index.html
+          echo "<p>Última actualización: $(date)</p><hr>" >> index.html
+          
+          echo "<h3>🐳 Contenedores (Trivy)</h3>" >> index.html
+          echo "<div class='card'><a href='reports/trivy-api.html'>📄 Reporte API</a></div>" >> index.html
+          echo "<div class='card'><a href='reports/trivy-frontend.html'>📄 Reporte Frontend</a></div>" >> index.html
+          echo "<div class='card'><a href='reports/trivy-scraper.html'>📄 Reporte Scraper</a></div>" >> index.html
+          
+          echo "<h3>🔥 Ataque Dinámico (OWASP ZAP)</h3>" >> index.html
+          echo "<div class='card'><a href='reports/report_dast_zap.html'>📄 Reporte DAST</a></div>" >> index.html
+          
+          echo "</body></html>" >> index.html
+
+      # 3. Publicar en la rama gh-pages
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          keep_files: false # Reemplaza el sitio viejo con el nuevo
