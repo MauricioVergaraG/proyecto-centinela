@@ -29,9 +29,9 @@ El sistema se compone de 5 servicios totalmente desacoplados:
 ```mermaid
 graph LR
     User((Analista)) -->|HTTP/React| Frontend[Frontend UI]
-    Frontend -->|REST JSON| API["Backend (FastAPI)"]
+    Frontend -->|REST JSON| API[Backend FastAPI]
     API -->|Task Queue| Redis[Redis Broker]
-    Redis --> Worker["Scraper Worker (Python)"]
+    Redis --> Worker[Scraper Worker]
     Worker -->|Web Requests| Web((Sitios Web))
     Worker -->|SQL Insert| DB[(PostgreSQL DB)]
     API -->|SQL Select| DB
@@ -56,15 +56,54 @@ La plataforma implementa un pipeline de seguridad integral basado en GitHub Acti
 ### Diagrama del Pipeline
 
 ```mermaid
-flowchart TD
-    A[Commit Push] --> B[Cache & Prep]
-    B --> C[SAST]
-    C --> D[SCA Dependencies]
-    D --> E[IaC Security]
-    E --> F[Testing]
-    F --> G[Container Security]
-    G --> H[DAST]
-    H --> I[Publish to GHCR]
+flowchart LR
+    %% 1. Preparación
+    Prep([Prepare & Cache])
+    
+    %% 2. Bloque Paralelo de Seguridad
+    subgraph Security_Checks [Parallel Security Checks]
+        direction TB
+        SCA[Dependency Scan]
+        IaC[IaC Scan]
+        SAST[Lint / Format / SAST]
+    end
+    
+    %% 3. Pruebas y Construcción
+    Test[Unit & Smoke Tests]
+    Build[Build, Scan & Push]
+    
+    %% 4. Seguridad Dinámica
+    DAST[DAST - OWASP ZAP]
+    
+    %% 5. Publicación
+    Pub[Publish :latest]
+    
+    %% 6. Finalización Paralela
+    subgraph Final_Steps [Reporting & Deploy]
+        direction TB
+        Web[Publish Reports Web]
+        Clean[Cleanup]
+        Deploy[Deploy (Sim)]
+    end
+
+    %% CONEXIONES (El flujo real)
+    Prep --> SCA & IaC & SAST
+    SCA & IaC & SAST --> Test
+    Test --> Build
+    Build --> DAST
+    DAST --> Pub
+    Pub --> Web & Clean & Deploy
+
+    %% ESTILOS (Para que se vea profesional)
+    classDef plain fill:#fff,stroke:#333,stroke-width:1px;
+    classDef success fill:#e6fffa,stroke:#2c7a7b,stroke-width:2px;
+    classDef warning fill:#fffaf0,stroke:#c05621,stroke-width:2px;
+    classDef danger fill:#fff5f5,stroke:#c53030,stroke-width:2px;
+
+    class Prep,Test,Pub plain;
+    class SCA,IaC,SAST warning;
+    class Build,Web,Deploy success;
+    class DAST danger;
 ```
 
 ### Etapas del Pipeline
