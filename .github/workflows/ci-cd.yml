@@ -399,38 +399,41 @@ jobs:
           echo "--------------------------------------------------------"
           echo "¡Despliegue simulado exitosamente!"
 
-# ------------------------------------------------------------------
-  # Job 11: Publicar Reportes Web (GitHub Pages)
+  # ------------------------------------------------------------------
+  # Job 11: Publicar Reportes Web (GitHub Pages) - CORREGIDO
   # ------------------------------------------------------------------
   deploy-reports-web:
     name: Publish Security Reports to Web
     runs-on: ubuntu-latest
-    needs: [build-and-scan-images, dast] # Espera a que terminen los escaneos
-    if: always() # Ejecutar aunque se encuentren vulnerabilidades
+    needs: [build-and-scan-images, dast]
+    if: always()
     permissions:
-      contents: write # Permiso para actualizar la rama web
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
-      # 1. Descargar los reportes guardados en los pasos anteriores
-      - name: Download Artifacts
+      # CORRECCIÓN: Descargamos en 'public' directamente
+      # para evitar que se cree una carpeta doble 'public/reports/reports'
+      - name: Download Artifacts (Trivy)
         uses: actions/download-artifact@v4
         with:
           name: trivy-reports
-          path: public/reports
-      
+          path: public
+
       - name: Download DAST Report
         uses: actions/download-artifact@v4
         with:
             name: reporte-dast-zap
             path: public/reports
 
-      # 2. Crear un Índice (Menú Principal)
+      - name: Debug - Show files
+        run: ls -R public
+
       - name: Generate Index Page
         run: |
           cd public
           echo "<html><head><title>Centinela Security Dashboard</title>" > index.html
-          echo "<style>body{font-family:sans-serif; padding:20px;} a{display:block; margin:10px 0; font-size:18px;} .card{border:1px solid #ddd; padding:15px; border-radius:8px; max-width:600px; margin-bottom:10px;}</style>" >> index.html
+          echo "<style>body{font-family:sans-serif; padding:20px; background:#f4f4f9;} a{text-decoration:none; color:#0366d6;} .card{background:white; border:1px solid #ddd; padding:15px; border-radius:8px; max-width:600px; margin-bottom:10px; box-shadow:0 2px 4px rgba(0,0,0,0.05);} .card:hover{box-shadow:0 4px 8px rgba(0,0,0,0.1);} h3{margin-top:30px; color:#333;}</style>" >> index.html
           echo "</head><body>" >> index.html
           echo "<h1>🛡️ Reportes de Seguridad - Proyecto Centinela</h1>" >> index.html
           echo "<p>Última actualización: $(date)</p><hr>" >> index.html
@@ -445,10 +448,9 @@ jobs:
           
           echo "</body></html>" >> index.html
 
-      # 3. Publicar en la rama gh-pages
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./public
-          keep_files: false # Reemplaza el sitio viejo con el nuevo
+          keep_files: false
